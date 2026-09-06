@@ -1,19 +1,19 @@
 ---
-name: Feature request
-about: Suggest an idea or improvement for Sideleaf
+name: Feature Request
+about: Suggest an improvement or idea for Sideleaf
 title: '[FEAT] '
 labels: enhancement
 assignees: ''
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. E.g. I'm always frustrated when [...]
+### What problem does this solve?
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen. Keep in mind Sideleaf's core philosophy: *Open it. Capture thoughts. Keep working. Organize later (lightweight, local-first, keyboard-first, distraction-free)*.
+A concise description of the friction, workflow gap, or use case.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+### Proposed behavior
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+Describe what you would like Sideleaf to do. Keep in mind Sideleaf's core philosophy: *Open it. Capture thoughts. Keep working. Organize later (calm, distraction-free, local-first)*.
+
+### Why is it useful?
+
+How does this help users without adding unnecessary complexity or dashboard clutter?

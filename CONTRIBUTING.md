@@ -26,7 +26,7 @@ Before contributing, please keep in mind the core philosophy that defines Sidele
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/sideleaf.git
+   git clone https://github.com/ferhatwork/sideleaf.git
    cd sideleaf
    ```
 
