@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../services/db';
-import { Item, Workspace } from '../types';
+import { Item, Workspace, ItemType } from '../types';
 
 // Mock localStorage for Node testing environment
 if (typeof localStorage === 'undefined') {
@@ -44,6 +44,68 @@ describe('Database & Persistence Layer', () => {
     await db.saveItem(item);
     const items = await db.getAllItems();
     expect(items.some((i) => i.id === 'test-item-1')).toBe(true);
+  });
+
+  it('saves, retrieves, and mutates decision items cleanly (Spec Section 17, 82)', async () => {
+    const decisionItem: Item = {
+      id: 'decision-item-1',
+      workspaceId: 'ws-arch',
+      type: 'decision',
+      content: 'Selected IndexedDB with localStorage fallback for reliable browser-native persistence',
+      status: 'active',
+      tags: ['persistence', 'storage'],
+      order: 1,
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
+
+    await db.saveItem(decisionItem);
+
+    let items = await db.getAllItems();
+    const retrieved = items.find((i) => i.id === 'decision-item-1');
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.type).toBe('decision');
+    expect(retrieved?.workspaceId).toBe('ws-arch');
+    expect(retrieved?.tags).toEqual(['persistence', 'storage']);
+
+    // Mutate decision in database
+    const updatedDecision: Item = {
+      ...decisionItem,
+      content: 'Selected IndexedDB with localStorage fallback (Audited for Safari and Firefox)',
+      updatedAt: 2000,
+    };
+    await db.saveItem(updatedDecision);
+
+    items = await db.getAllItems();
+    const updatedRetrieved = items.find((i) => i.id === 'decision-item-1');
+    expect(updatedRetrieved?.content).toContain('(Audited for Safari and Firefox)');
+    expect(updatedRetrieved?.updatedAt).toBe(2000);
+    expect(updatedRetrieved?.type).toBe('decision');
+  });
+
+  it('persists items across all supported ItemType variants', async () => {
+    const types: ItemType[] = ['text', 'checklist', 'quote', 'link', 'divider', 'decision'];
+
+    const itemsToSave: Item[] = types.map((type, idx) => ({
+      id: `type-item-${idx}`,
+      workspaceId: null,
+      type,
+      content: `Item of type ${type}`,
+      checked: type === 'checklist' ? false : undefined,
+      status: 'active',
+      order: idx,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }));
+
+    await db.saveItems(itemsToSave);
+
+    const retrievedItems = await db.getAllItems();
+    for (const type of types) {
+      const match = retrievedItems.find((i) => i.type === type);
+      expect(match).toBeDefined();
+      expect(match?.type).toBe(type);
+    }
   });
 
   it('performs bulk item deletion reliably', async () => {

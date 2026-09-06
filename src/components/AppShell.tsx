@@ -236,19 +236,6 @@ export const AppShell: React.FC = () => {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenShortcuts={() => setIsShortcutsOpen(true)}
             onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-            itemCount={
-              activeView.type === 'today'
-                ? counts.today
-                : activeView.type === 'scratch'
-                ? counts.scratch
-                : activeView.type === 'workspace'
-                ? counts.wsMap[activeView.workspaceId] || 0
-                : activeView.type === 'recent'
-                ? counts.recent
-                : activeView.type === 'archive'
-                ? counts.archive
-                : counts.trash
-            }
           />
 
           <main className="flex-1 overflow-y-auto">

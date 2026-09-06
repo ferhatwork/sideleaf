@@ -1,7 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { ItemType } from '../types';
-import { Type, CheckSquare, Quote, Link2, Minus, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
+
+export interface QuickInputHandle {
+  focus: () => void;
+}
 
 interface QuickInputProps {
   onAdd: (params: {
@@ -15,20 +19,33 @@ interface QuickInputProps {
   autoFocus?: boolean;
 }
 
-export const QuickInput: React.FC<QuickInputProps> = ({
+export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   onAdd,
   defaultWorkspaceId = null,
-  placeholder = 'Write it down... (Enter to save, Ctrl+Enter for task)',
+  placeholder = "What's on your mind?",
   autoFocus = false,
-}) => {
+}, ref) => {
   const [content, setContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
+  const [isFocused, setIsFocused] = useState(autoFocus);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      setIsFocused(true);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 30);
+    },
+  }));
+
   useEffect(() => {
-    if (autoFocus && textareaRef.current) {
-      textareaRef.current.focus();
+    if (autoFocus) {
+      setIsFocused(true);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 30);
     }
   }, [autoFocus]);
 
@@ -47,7 +64,6 @@ export const QuickInput: React.FC<QuickInputProps> = ({
       setType('text');
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
-        textareaRef.current.focus();
       }
     } finally {
       setIsSubmitting(false);
@@ -62,6 +78,9 @@ export const QuickInput: React.FC<QuickInputProps> = ({
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
+    } else if (e.key === 'Escape' && !content.trim()) {
+      e.preventDefault();
+      setIsFocused(false);
     }
   };
 
@@ -86,95 +105,94 @@ export const QuickInput: React.FC<QuickInputProps> = ({
     }
   };
 
+  const handleIdleClick = () => {
+    setIsFocused(true);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 20);
+  };
+
+  if (!isFocused && !content) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleIdleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleIdleClick();
+          }
+        }}
+        aria-label="Capture something (Press Enter to start writing)"
+        className="group w-full py-2 px-3.5 rounded-lg border border-neutral-200/70 dark:border-workpad-dark-border/70 bg-white/60 dark:bg-workpad-dark-surface/40 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all cursor-text flex items-center justify-between text-neutral-400 dark:text-neutral-500 focus-ring"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-neutral-400 dark:text-neutral-500 text-sm font-light leading-none group-hover:text-neutral-700 dark:group-hover:text-neutral-300 transition-colors">
+            +
+          </span>
+          <span className="text-sm font-normal text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors">
+            Capture something...
+          </span>
+        </div>
+        <kbd className="text-[11px] font-mono text-neutral-400 dark:text-neutral-500 px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/60">
+          ⌘↵
+        </kbd>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl border border-neutral-300/80 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-xs focus-within:border-blue-500/70 dark:focus-within:border-blue-500/60 focus-within:ring-1 focus-within:ring-blue-500/30 transition-all p-3">
+    <div className="rounded-lg border border-neutral-300/80 dark:border-neutral-700 bg-white dark:bg-workpad-dark-surface shadow-xs transition-all p-3">
       <textarea
         ref={textareaRef}
         value={content}
         onChange={(e) => {
           setContent(e.target.value);
           e.target.style.height = 'auto';
-          e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+          e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
         }}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onBlur={() => {
+          if (!content.trim() && !autoFocus) {
+            setIsFocused(false);
+          }
+        }}
         placeholder={placeholder}
-        rows={1}
-        aria-label="Quick capture input"
+        rows={2}
+        aria-label="What's on your mind?"
         className="w-full bg-transparent resize-none text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
       />
 
-      <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between">
-        {/* Type selector pills */}
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setType('text')}
-            className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 transition-colors focus-ring ${
-              type === 'text'
-                ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
-                : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-            }`}
-          >
-            <Type className="w-3 h-3" /> Text
-          </button>
-          <button
-            type="button"
-            onClick={() => setType('checklist')}
-            className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 transition-colors focus-ring ${
-              type === 'checklist'
-                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-medium'
-                : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-            }`}
-          >
-            <CheckSquare className="w-3 h-3" /> Task
-          </button>
-          <button
-            type="button"
-            onClick={() => setType('quote')}
-            className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 transition-colors focus-ring ${
-              type === 'quote'
-                ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 font-medium'
-                : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-            }`}
-          >
-            <Quote className="w-3 h-3" /> Quote
-          </button>
-          <button
-            type="button"
-            onClick={() => setType('link')}
-            className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 transition-colors focus-ring ${
-              type === 'link'
-                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 font-medium'
-                : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-            }`}
-          >
-            <Link2 className="w-3 h-3" /> Link
-          </button>
-          <button
-            type="button"
-            onClick={() => setType('divider')}
-            className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 transition-colors focus-ring ${
-              type === 'divider'
-                ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 font-medium'
-                : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-            }`}
-          >
-            <Minus className="w-3 h-3" /> Divider
-          </button>
+      <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {type !== 'text' && (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 capitalize">
+              {type}
+            </span>
+          )}
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-mono">
+            Enter to save · Ctrl+Enter for task
+          </span>
         </div>
 
-        {/* Action submit button */}
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:inline text-[11px] text-neutral-400 font-mono">
-            Enter to save
-          </span>
+        <div className="flex items-center gap-1.5">
+          {!content.trim() && (
+            <button
+              type="button"
+              onClick={() => setIsFocused(false)}
+              className="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 px-2 py-1 rounded focus-ring"
+            >
+              Cancel
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handleSubmit()}
             disabled={!content.trim() || isSubmitting}
-            className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white transition-colors focus-ring"
-            title="Save capture"
+            className="p-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-ring flex items-center gap-1 text-xs font-medium"
+            title="Save capture (Enter)"
             aria-label="Save capture"
           >
             <ArrowRight className="w-3.5 h-3.5" />
@@ -183,4 +201,6 @@ export const QuickInput: React.FC<QuickInputProps> = ({
       </div>
     </div>
   );
-};
+});
+
+QuickInput.displayName = 'QuickInput';

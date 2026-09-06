@@ -1,4 +1,4 @@
-export type ItemType = 'text' | 'checklist' | 'quote' | 'link' | 'divider';
+export type ItemType = 'text' | 'checklist' | 'quote' | 'link' | 'divider' | 'decision';
 
 export type ItemStatus = 'active' | 'archived' | 'deleted';
 
@@ -24,6 +24,49 @@ export interface Item {
   deletedAt?: number;
   source?: ItemSource;
   tags?: string[];
+}
+
+export interface WorkSession {
+  id: string;
+  workspaceId: string | null;
+  workspaceName?: string;
+  startedAt: number;
+  lastActiveAt: number;
+  itemCount: number;
+}
+
+export interface CreateItemParams {
+  content: string;
+  type?: ItemType;
+  workspaceId?: string | null;
+  checked?: boolean;
+  sourceUrl?: string;
+}
+
+export interface UpdateItemParams {
+  content?: string;
+  type?: ItemType;
+  workspaceId?: string | null;
+  checked?: boolean;
+  status?: ItemStatus;
+  tags?: string[];
+  archivedAt?: number;
+  deletedAt?: number;
+  source?: ItemSource;
+  order?: number;
+}
+
+export interface ApplicationCommands {
+  createItem: (params: CreateItemParams) => Promise<Item>;
+  addItem: (params: CreateItemParams) => Promise<Item>;
+  updateItem: (id: string, updates: Partial<Item>) => Promise<void>;
+  convertToTask: (id: string) => Promise<void>;
+  moveItem: (id: string, targetWorkspaceId: string | null) => Promise<void>;
+  archiveItem: (id: string) => Promise<void>;
+  restoreItem: (id: string) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
+  softDeleteItem: (id: string) => Promise<void>;
+  setCurrentWorkspace: (workspaceId: string | null) => void;
 }
 
 export interface Workspace {

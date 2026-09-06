@@ -6,14 +6,20 @@ Workpad is built as a zero-backend, browser-native, local-first single page appl
 
 ```text
 ┌────────────────────────────────────────────────────────┐
-│                        UI Layer                        │
+│               Work Surface (Document UI)               │
 │   Today  │  Scratch  │  Workspaces  │  Recent  │  Archive   │
-│   Quick Capture (Ctrl+Space)  │  Search Modal (Ctrl+K) │
+│   Quick Capture (Ctrl+Space)  │  External Memory (Ctrl+K) │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│                  Application Commands                  │
+│   createItem │ updateItem │ convertToTask │ moveItem   │
+│   archiveItem │ restoreItem │ deleteItem │ setWorkspace│
 └───────────────────────────┬────────────────────────────┘
                             │
 ┌───────────────────────────▼────────────────────────────┐
 │                    Application State                   │
-│        useWorkpad Context (Reactive Domain Store)      │
+│       useWorkpad Context (Work Sessions & Context)     │
 └──────────────┬────────────┬─────────────┬──────────────┘
                │            │             │
                ▼            ▼             ▼
@@ -28,14 +34,15 @@ Workpad is built as a zero-backend, browser-native, local-first single page appl
 
 ## 2. Core Modules
 
-### 2.1 State & Domain Model (`src/types/index.ts`, `src/hooks/useWorkpad.tsx`)
+### 2.1 State, Commands & Domain Model (`src/types/index.ts`, `src/utils/domain.ts`, `src/hooks/useWorkpad.tsx`)
 
-State is managed through React Context with fine-grained memoization (`useMemo`, `useCallback`) following the `vercel-react-best-practices` guidelines to prevent unnecessary re-renders.
+State follows the **Application Commands** architectural pattern (Spec Section 80–81). The UI never mutates persistence directly; instead, all actions flow through strict domain commands.
 
 Primary entities:
-- **`Item`**: Individual unit of thought. Can be `text`, `checklist`, `quote`, `link`, or `divider`. Status is `active`, `archived`, or `deleted`.
-- **`Workspace`**: Optional context tag (e.g. Website, Research, Thesis). Unassigned items reside in `Scratch` (`workspaceId: null`).
-- **`ActivityLog`**: Private audit and working memory stream recording item creation, task completions, and conversions.
+- **`Item`**: Individual unit of thought. Can be `text`, `checklist`, `quote`, `link`, `divider`, or `decision`. Rendered as a lightweight document row on the work surface. Status is `active`, `archived`, or `deleted`.
+- **`WorkSession`**: Lightweight internal working memory context capturing `workspaceId`, `startedAt`, `lastActiveAt`, and touch count without user intervention.
+- **`Workspace`**: Context boundary (e.g. Website Redesign, Research). Newly captured items silently inherit the active workspace context ("Working On") without prompting. Scratch remains default (`workspaceId: null`).
+- **`ActivityLog`**: Private audit and working memory stream recording item creation, task conversions, and context switches.
 - **`UserSettings`**: Persisted theme preferences and keybindings.
 
 ### 2.2 Local Persistence (`src/services/db.ts`)

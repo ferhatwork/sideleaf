@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ItemType, Workspace } from '../types';
-import { Type, CheckSquare, Quote, Link2, Minus, X } from 'lucide-react';
+import { X, ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
 
 interface QuickCaptureModalProps {
@@ -25,6 +25,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
   const [content, setContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
   const [workspaceId, setWorkspaceId] = useState<string | null>(activeWorkspaceId);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -48,16 +49,21 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
 
   const handleSave = async (overrideType?: ItemType) => {
     const trimmed = content.trim();
-    if (!trimmed) {
+    if (!trimmed || isSubmitting) {
       onClose();
       return;
     }
-    await onSave({
-      content: trimmed,
-      type: overrideType || type,
-      workspaceId,
-    });
-    onClose();
+    try {
+      setIsSubmitting(true);
+      await onSave({
+        content: trimmed,
+        type: overrideType || type,
+        workspaceId,
+      });
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -150,77 +156,27 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onPaste={handlePaste}
-            placeholder="What's on your mind? (Enter to save, Ctrl+Enter for task)"
+            placeholder="What's on your mind?"
             rows={3}
             aria-label="What's on your mind?"
             className="w-full bg-transparent resize-none text-base text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
           />
 
           <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setType('text')}
-                className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 focus-ring ${
-                  type === 'text'
-                    ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
-                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-                }`}
-              >
-                <Type className="w-3 h-3" /> Text
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('checklist')}
-                className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 focus-ring ${
-                  type === 'checklist'
-                    ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-medium'
-                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-                }`}
-              >
-                <CheckSquare className="w-3 h-3" /> Task
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('quote')}
-                className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 focus-ring ${
-                  type === 'quote'
-                    ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 font-medium'
-                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-                }`}
-              >
-                <Quote className="w-3 h-3" /> Quote
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('link')}
-                className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 focus-ring ${
-                  type === 'link'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 font-medium'
-                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-                }`}
-              >
-                <Link2 className="w-3 h-3" /> Link
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('divider')}
-                className={`px-2 py-1 rounded text-xs flex items-center gap-1.5 focus-ring ${
-                  type === 'divider'
-                    ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 font-medium'
-                    : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
-                }`}
-              >
-                <Minus className="w-3 h-3" /> Divider
-              </button>
+            <div className="flex items-center gap-2">
+              {type !== 'text' && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 capitalize">
+                  {type}
+                </span>
+              )}
 
               <select
                 value={workspaceId || ''}
                 onChange={(e) => setWorkspaceId(e.target.value || null)}
-                aria-label="Select target workspace"
-                className="ml-2 text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded px-2 py-1 border-none focus-ring"
+                aria-label="Target workspace"
+                className="text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded px-2 py-1 border-none focus-ring"
               >
-                <option value="">(Scratch)</option>
+                <option value="">Scratch</option>
                 {workspaces.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -229,9 +185,21 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
               </select>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono">
-              <span>[Enter] save</span>
-              <span>[Esc] cancel</span>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-mono hidden sm:inline">
+                Enter to save · Ctrl+Enter for task
+              </span>
+              <button
+                type="button"
+                onClick={() => handleSave()}
+                disabled={!content.trim() || isSubmitting}
+                className="px-3 py-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-ring flex items-center gap-1.5"
+                title="Save capture (Enter)"
+                aria-label="Save capture"
+              >
+                <span>Save</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         </div>

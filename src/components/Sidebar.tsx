@@ -20,9 +20,9 @@ interface SidebarProps {
   onEditWorkspace: (ws: Workspace) => void;
   onDeleteWorkspace: (id: string) => void;
   onOpenSettings: () => void;
-  todayCount: number;
-  scratchCount: number;
-  recentCount: number;
+  todayCount?: number;
+  scratchCount?: number;
+  recentCount?: number;
   archiveCount: number;
   trashCount: number;
   workspaceCounts: Record<string, number>;
@@ -38,9 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onEditWorkspace,
   onDeleteWorkspace,
   onOpenSettings,
-  todayCount,
-  scratchCount,
-  recentCount,
   archiveCount,
   trashCount,
   workspaceCounts,
@@ -92,50 +89,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => handleNav({ type: 'today' })}
               className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'today'
-                  ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+                  ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Calendar className="w-4 h-4 text-blue-500" />
+                <Calendar className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
                 <span>Today</span>
               </div>
-              <span className="text-[11px] font-mono text-neutral-400">{todayCount}</span>
             </button>
 
             <button
               onClick={() => handleNav({ type: 'scratch' })}
               className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'scratch'
-                  ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+                  ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <FileEdit className="w-4 h-4 text-amber-500" />
+                <FileEdit className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
                 <span>Scratch</span>
               </div>
-              <span className="text-[11px] font-mono text-neutral-400">{scratchCount}</span>
             </button>
 
             <button
               onClick={() => handleNav({ type: 'recent' })}
               className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'recent'
-                  ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
+                  ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Clock className="w-4 h-4 text-purple-500" />
+                <Clock className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
                 <span>Recent</span>
               </div>
-              <span className="text-[11px] font-mono text-neutral-400">{recentCount}</span>
             </button>
           </div>
 
           {/* Workspaces Section */}
-          <div>
+          <div className="pt-1">
             <div className="px-3 py-1.5 flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
                 Workspaces
@@ -178,10 +172,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             style={{ backgroundColor: ws.color || '#3b82f6' }}
                           />
                           <span className="truncate">{ws.name}</span>
+                          {isActive && (
+                            <span className="text-[9px] text-blue-500 font-bold ml-0.5" title="Active">
+                              ●
+                            </span>
+                          )}
                         </div>
-                        <span className="text-[11px] font-mono text-neutral-400 group-hover:opacity-0 group-focus-within:opacity-0 transition-opacity">
-                          {count}
-                        </span>
+                        {count > 0 && (
+                          <span className="text-[11px] font-mono text-neutral-400 group-hover:opacity-0 group-focus-within:opacity-0 transition-opacity">
+                            {count}
+                          </span>
+                        )}
                       </button>
 
                       {/* Options menu trigger (visible on hover AND focus) */}
@@ -242,7 +243,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Archive className="w-3.5 h-3.5 text-neutral-400" />
                 <span>Archive</span>
               </div>
-              <span className="text-[11px] font-mono text-neutral-400">{archiveCount}</span>
+              {archiveCount > 0 && (
+                <span className="text-[11px] font-mono text-neutral-400">{archiveCount}</span>
+              )}
             </button>
 
             <button
@@ -257,7 +260,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Trash2 className="w-3.5 h-3.5 text-neutral-400" />
                 <span>Trash</span>
               </div>
-              <span className="text-[11px] font-mono text-neutral-400">{trashCount}</span>
+              {trashCount > 0 && (
+                <span className="text-[11px] font-mono text-neutral-400">{trashCount}</span>
+              )}
             </button>
           </div>
         </div>

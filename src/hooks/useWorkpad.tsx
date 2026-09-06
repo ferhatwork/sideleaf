@@ -1,8 +1,19 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
-import { Item, Workspace, UserSettings, ActivityLog, ActiveView, ItemType } from '../types';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
+import {
+  Item,
+  Workspace,
+  UserSettings,
+  ActivityLog,
+  ActiveView,
+  ItemType,
+  WorkSession,
+  CreateItemParams,
+  ApplicationCommands,
+  ActivityAction,
+} from '../types';
 import { db } from '../services/db';
 import { generateId } from '../utils/id';
-import { extractDomain, extractUrls } from '../utils/format';
+import { createItemRecord, updateWorkSession } from '../utils/domain';
 
 interface UndoAction {
   description: string;
@@ -20,7 +31,7 @@ interface ExtendedUserSettings extends UserSettings {
   hasInitialized?: boolean;
 }
 
-interface WorkpadContextType {
+interface WorkpadContextType extends ApplicationCommands {
   items: Item[];
   workspaces: Workspace[];
   settings: ExtendedUserSettings;
@@ -28,6 +39,12 @@ interface WorkpadContextType {
   activeView: ActiveView;
   setActiveView: (view: ActiveView) => void;
   isLoading: boolean;
+
+  // Working On / Context & Work Session (Spec Sections 15, 16, 58)
+  currentWorkspaceId: string | null;
+  setCurrentWorkspace: (workspaceId: string | null) => void;
+  setCurrentWorkspaceId: (workspaceId: string | null) => void;
+  currentSession: WorkSession | null;
 
   // Modals
   isQuickCaptureOpen: boolean;
@@ -41,20 +58,17 @@ interface WorkpadContextType {
   isWorkspaceModalOpen: boolean;
   setIsWorkspaceModalOpen: (open: boolean) => void;
 
-  // CRUD
-  addItem: (params: {
-    content: string;
-    type?: ItemType;
-    workspaceId?: string | null;
-    checked?: boolean;
-    sourceUrl?: string;
-  }) => Promise<Item>;
+  // CRUD / Commands
+  addItem: (params: CreateItemParams) => Promise<Item>;
+  createItem: (params: CreateItemParams) => Promise<Item>;
   updateItem: (id: string, updates: Partial<Item>) => Promise<void>;
   toggleItemCheck: (id: string) => Promise<void>;
+  convertToTask: (id: string) => Promise<void>;
   convertItemType: (id: string, targetType: ItemType) => Promise<void>;
   moveItem: (id: string, targetWorkspaceId: string | null) => Promise<void>;
   archiveItem: (id: string) => Promise<void>;
   restoreItem: (id: string) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
   softDeleteItem: (id: string) => Promise<void>;
   permanentlyDeleteItem: (id: string) => Promise<void>;
   permanentlyDeleteItems: (ids: string[]) => Promise<void>;
@@ -100,6 +114,10 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
   const [activeView, setActiveView] = useState<ActiveView>({ type: 'today' });
   const [isLoading, setIsLoading] = useState(true);
 
+  // Working On / Context & Work Session (Spec Sections 15, 16, 58)
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
+  const [currentSession, setCurrentSession] = useState<WorkSession | null>(null);
+
   // Modal visibility states
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -107,11 +125,18 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
 
-  // Toast & Undo
+  // Toast & Undo Stack (Spec Section 53, 54)
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const undoStackRef = useRef<UndoAction[]>([]);
 
   const triggerToast = useCallback((text: string, undoAction?: UndoAction) => {
     const id = generateId('toast');
+    if (undoAction) {
+      undoStackRef.current.push(undoAction);
+      if (undoStackRef.current.length > 50) {
+        undoStackRef.current.shift();
+      }
+    }
     setToast({
       id,
       text,
@@ -125,14 +150,49 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const performUndo = useCallback(async () => {
-    if (toast?.undoAction) {
-      const action = toast.undoAction;
+    const action = undoStackRef.current.pop();
+    if (action) {
       setToast(null);
       await action.revert();
     }
-  }, [toast]);
+  }, []);
 
-  // Load initial data
+  // Sync currentWorkspaceId and session when activeView changes to a workspace
+  useEffect(() => {
+    if (activeView.type === 'workspace') {
+      setCurrentWorkspaceId(activeView.workspaceId);
+      const wsName = workspaces.find((w) => w.id === activeView.workspaceId)?.name;
+      setCurrentSession((prev) =>
+        updateWorkSession(prev, activeView.workspaceId, wsName, Date.now(), false)
+      );
+    }
+  }, [activeView, workspaces]);
+
+  // Touch session helper (Spec Section 16)
+  const touchSession = useCallback(
+    (targetWorkspaceId?: string | null) => {
+      const effectiveWsId = targetWorkspaceId !== undefined ? targetWorkspaceId : currentWorkspaceId;
+      const wsName = effectiveWsId ? workspaces.find((w) => w.id === effectiveWsId)?.name : undefined;
+      setCurrentSession((prev) =>
+        updateWorkSession(prev, effectiveWsId ?? null, wsName, Date.now(), true)
+      );
+    },
+    [currentWorkspaceId, workspaces]
+  );
+
+  // Set current workspace context (Spec Section 15, 58)
+  const setCurrentWorkspace = useCallback(
+    (workspaceId: string | null) => {
+      setCurrentWorkspaceId(workspaceId);
+      const wsName = workspaceId ? workspaces.find((w) => w.id === workspaceId)?.name : undefined;
+      setCurrentSession((prev) =>
+        updateWorkSession(prev, workspaceId, wsName, Date.now(), false)
+      );
+    },
+    [workspaces]
+  );
+
+  // Load initial data (Clean first-run experience: Spec Section 13, 27)
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
@@ -150,65 +210,30 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         setSettings(currentSettings);
         applyTheme(currentSettings.theme);
 
-        // Only seed starter data on the very first visit (when hasInitialized is not true)
-        if (!currentSettings.hasInitialized && loadedItems.length === 0 && loadedWorkspaces.length === 0) {
-          const starterWorkspace: Workspace = {
-            id: generateId('ws'),
-            name: 'Website Redesign',
-            color: '#3b82f6',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          };
-
+        // Only seed realistic starter data on very first run (no fake tutorial/marketing cards!)
+        if (!currentSettings.hasInitialized && loadedItems.length === 0) {
           const starterItems: Item[] = [
             {
               id: generateId('item'),
               workspaceId: null,
               type: 'text',
-              content: 'Welcome to Workpad. Press Ctrl+Space anytime to capture a thought.',
+              content: 'Review project notes',
               status: 'active',
-              order: 1,
-              createdAt: Date.now() - 1000 * 60 * 10,
-              updatedAt: Date.now() - 1000 * 60 * 10,
-            },
-            {
-              id: generateId('item'),
-              workspaceId: null,
-              type: 'checklist',
-              content: 'Try converting any note into a task with one click',
-              checked: false,
-              status: 'active',
-              order: 2,
-              createdAt: Date.now() - 1000 * 60 * 8,
-              updatedAt: Date.now() - 1000 * 60 * 8,
-            },
-            {
-              id: generateId('item'),
-              workspaceId: starterWorkspace.id,
-              type: 'link',
-              content: 'Review Stripe webhook documentation for API limits',
-              status: 'active',
-              order: 3,
-              source: {
-                url: 'https://docs.stripe.com/webhooks',
-                domain: 'docs.stripe.com',
-                title: 'Stripe Webhook Limits',
-                capturedAt: Date.now() - 1000 * 60 * 5,
-              },
-              createdAt: Date.now() - 1000 * 60 * 5,
-              updatedAt: Date.now() - 1000 * 60 * 5,
+              order: Date.now(),
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
             },
           ];
 
           const updatedSettings = { ...currentSettings, hasInitialized: true };
           await Promise.all([
-            db.saveWorkspaces([starterWorkspace]),
             db.saveItems(starterItems),
             db.saveSettings(updatedSettings),
           ]);
 
-          setWorkspaces([starterWorkspace]);
           setItems(starterItems);
+          setWorkspaces(loadedWorkspaces);
+          setActivity(loadedActivity);
           setSettings(updatedSettings);
         } else {
           setItems(loadedItems);
@@ -241,60 +266,15 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Add Item
+  // Add / Create Item (Spec Section 80-81, 101: silent workspace inheritance)
   const addItem = useCallback(
-    async (params: {
-      content: string;
-      type?: ItemType;
-      workspaceId?: string | null;
-      checked?: boolean;
-      sourceUrl?: string;
-    }): Promise<Item> => {
-      const content = params.content.trim();
-      let determinedType = params.type || 'text';
-
-      // Auto-detect divider if content is "---"
-      if (content === '---' || content === '***') {
-        determinedType = 'divider';
-      }
-
-      // Auto-detect quote if starts with > or quotes
-      if (!params.type && (content.startsWith('>') || /^["“].*["”]$/.test(content))) {
-        determinedType = 'quote';
-      }
-
-      // Auto-detect URLs if present
-      const urls = extractUrls(content);
-      let source = undefined;
-      if (params.sourceUrl || urls.length > 0) {
-        const targetUrl = params.sourceUrl || urls[0];
-        source = {
-          url: targetUrl,
-          domain: extractDomain(targetUrl) || undefined,
-          capturedAt: Date.now(),
-        };
-
-        // If content is just the URL and type wasn't explicitly set to checklist/quote
-        if ((!params.type || params.type === 'text') && urls.length === 1 && content === urls[0]) {
-          determinedType = 'link';
-        }
-      }
-
-      const newItem: Item = {
-        id: generateId('item'),
-        workspaceId: params.workspaceId !== undefined ? params.workspaceId : null,
-        type: determinedType,
-        content: content,
-        checked: params.checked || false,
-        status: 'active',
-        order: Date.now(),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        source,
-      };
+    async (params: CreateItemParams): Promise<Item> => {
+      const newItem = createItemRecord(params, currentWorkspaceId, Date.now());
 
       setItems((prev) => [newItem, ...prev]);
       await db.saveItem(newItem);
+
+      touchSession(newItem.workspaceId);
 
       const act: ActivityLog = {
         id: generateId('act'),
@@ -309,25 +289,31 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
       return newItem;
     },
-    []
+    [currentWorkspaceId, touchSession]
   );
 
-  // Update Item (Uses functional update to prevent stale closure clobbering)
-  const updateItem = useCallback(async (id: string, updates: Partial<Item>) => {
-    let itemToPersist: Item | null = null;
-    setItems((prev) =>
-      prev.map((it) => {
-        if (it.id !== id) return it;
-        const merged = { ...it, ...updates, updatedAt: Date.now() };
-        itemToPersist = merged;
-        return merged;
-      })
-    );
+  const createItem = addItem;
 
-    if (itemToPersist) {
-      await db.saveItem(itemToPersist);
-    }
-  }, []);
+  // Update Item (Uses functional update to prevent stale closure clobbering)
+  const updateItem = useCallback(
+    async (id: string, updates: Partial<Item>) => {
+      let itemToPersist: Item | null = null;
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          const merged = { ...it, ...updates, updatedAt: Date.now() };
+          itemToPersist = merged;
+          return merged;
+        })
+      );
+
+      if (itemToPersist) {
+        await db.saveItem(itemToPersist);
+        touchSession((itemToPersist as Item).workspaceId);
+      }
+    },
+    [touchSession]
+  );
 
   // Toggle checklist (Uses functional update)
   const toggleItemCheck = useCallback(
@@ -346,8 +332,9 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
       if (toggledItem) {
         await db.saveItem(toggledItem);
-
         const target = toggledItem as Item;
+        touchSession(target.workspaceId);
+
         const act: ActivityLog = {
           id: generateId('act'),
           itemId: target.id,
@@ -360,23 +347,25 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         db.logActivity(act).catch(() => {});
       }
     },
-    []
+    [touchSession]
   );
 
-  // Convert Item Type
+  // Convert Item Type (General)
   const convertItemType = useCallback(
     async (id: string, targetType: ItemType) => {
       let previousType: ItemType = 'text';
+      let previousChecked: boolean | undefined = undefined;
       let convertedItem: Item | null = null;
 
       setItems((prev) =>
         prev.map((it) => {
           if (it.id !== id) return it;
           previousType = it.type;
+          previousChecked = it.checked;
           convertedItem = {
             ...it,
             type: targetType,
-            checked: targetType === 'checklist' ? it.checked ?? false : undefined,
+            checked: targetType === 'checklist' ? (it.checked ?? false) : undefined,
             updatedAt: Date.now(),
           };
           return convertedItem;
@@ -385,16 +374,37 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
       if (convertedItem) {
         await db.saveItem(convertedItem);
+        touchSession((convertedItem as Item).workspaceId);
 
-        triggerToast(`Converted to ${targetType}`, {
+        const actionType: ActivityAction = targetType === 'checklist' ? 'convert_task' : 'edit';
+        const act: ActivityLog = {
+          id: generateId('act'),
+          itemId: id,
+          itemTextPreview: (convertedItem as Item).content.slice(0, 40),
+          action: actionType,
+          details: `Converted item to ${targetType}`,
+          timestamp: Date.now(),
+        };
+        setActivity((prev) => [act, ...prev.slice(0, 99)]);
+        db.logActivity(act).catch(() => {});
+
+        triggerToast(targetType === 'checklist' ? 'Converted to task' : `Converted to ${targetType}`, {
           description: `Undo conversion to ${targetType}`,
           revert: async () => {
-            await updateItem(id, { type: previousType });
+            await updateItem(id, { type: previousType, checked: previousChecked });
           },
         });
       }
     },
-    [triggerToast, updateItem]
+    [triggerToast, updateItem, touchSession]
+  );
+
+  // Convert to task command (Spec Section 80-81, 12)
+  const convertToTask = useCallback(
+    async (id: string) => {
+      await convertItemType(id, 'checklist');
+    },
+    [convertItemType]
   );
 
   // Move Item to Workspace
@@ -414,6 +424,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
       if (movedItem) {
         await db.saveItem(movedItem);
+        touchSession(targetWorkspaceId);
 
         const destName = targetWorkspaceId
           ? workspaces.find((w) => w.id === targetWorkspaceId)?.name || 'Workspace'
@@ -427,17 +438,19 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [workspaces, triggerToast, updateItem]
+    [workspaces, triggerToast, updateItem, touchSession]
   );
 
   // Archive Item
   const archiveItem = useCallback(
     async (id: string) => {
       let archivedItem: Item | null = null;
+      let prevStatus = 'active';
 
       setItems((prev) =>
         prev.map((it) => {
           if (it.id !== id) return it;
+          prevStatus = it.status;
           archivedItem = {
             ...it,
             status: 'archived',
@@ -450,26 +463,33 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
       if (archivedItem) {
         await db.saveItem(archivedItem);
+        touchSession((archivedItem as Item).workspaceId);
 
         triggerToast('Item archived', {
           description: 'Undo archive',
           revert: async () => {
-            await updateItem(id, { status: 'active', archivedAt: undefined });
+            await updateItem(id, { status: prevStatus as any, archivedAt: undefined });
           },
         });
       }
     },
-    [triggerToast, updateItem]
+    [triggerToast, updateItem, touchSession]
   );
 
   // Restore Item
   const restoreItem = useCallback(
     async (id: string) => {
       let restoredItem: Item | null = null;
+      let prevStatus = 'archived';
+      let prevArchivedAt: number | undefined = undefined;
+      let prevDeletedAt: number | undefined = undefined;
 
       setItems((prev) =>
         prev.map((it) => {
           if (it.id !== id) return it;
+          prevStatus = it.status;
+          prevArchivedAt = it.archivedAt;
+          prevDeletedAt = it.deletedAt;
           restoredItem = {
             ...it,
             status: 'active',
@@ -483,13 +503,23 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
       if (restoredItem) {
         await db.saveItem(restoredItem);
-        triggerToast('Item restored to active surface');
+        touchSession((restoredItem as Item).workspaceId);
+        triggerToast('Item restored to active surface', {
+          description: 'Undo restore',
+          revert: async () => {
+            await updateItem(id, {
+              status: prevStatus as any,
+              archivedAt: prevArchivedAt,
+              deletedAt: prevDeletedAt,
+            });
+          },
+        });
       }
     },
-    [triggerToast]
+    [triggerToast, updateItem, touchSession]
   );
 
-  // Soft Delete Item (Move to Trash)
+  // Soft Delete Item (Move to Trash, Spec Section 53, 54)
   const softDeleteItem = useCallback(
     async (id: string) => {
       let deletedItem: Item | null = null;
@@ -511,6 +541,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
       if (deletedItem) {
         await db.saveItem(deletedItem);
+        touchSession((deletedItem as Item).workspaceId);
 
         triggerToast('Item moved to trash', {
           description: 'Undo delete',
@@ -520,8 +551,11 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [triggerToast, updateItem]
+    [triggerToast, updateItem, touchSession]
   );
+
+  // deleteItem alias for softDeleteItem (Spec Section 80-81)
+  const deleteItem = softDeleteItem;
 
   // Permanently Delete Item
   const permanentlyDeleteItem = useCallback(
@@ -597,13 +631,17 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       setWorkspaces((prev) => prev.filter((w) => w.id !== id));
       await db.deleteWorkspace(id);
 
+      if (currentWorkspaceId === id) {
+        setCurrentWorkspace(null);
+      }
+
       if (activeView.type === 'workspace' && activeView.workspaceId === id) {
         setActiveView({ type: 'today' });
       }
 
       triggerToast(`Workspace "${wsToDelete.name}" deleted. Notes preserved in Scratch.`);
     },
-    [workspaces, items, activeView, triggerToast]
+    [workspaces, items, activeView, currentWorkspaceId, setCurrentWorkspace, triggerToast]
   );
 
   // Update Settings
@@ -702,6 +740,9 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
     setItems([]);
     setWorkspaces([]);
     setActivity([]);
+    setCurrentSession(null);
+    setCurrentWorkspaceId(null);
+    undoStackRef.current = [];
     setSettings(cleanSettings);
     setActiveView({ type: 'today' });
     triggerToast('All data cleared. Empty workspace ready.');
@@ -716,6 +757,10 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       activeView,
       setActiveView,
       isLoading,
+      currentWorkspaceId,
+      setCurrentWorkspace,
+      setCurrentWorkspaceId: setCurrentWorkspace,
+      currentSession,
       isQuickCaptureOpen,
       setIsQuickCaptureOpen,
       isSearchOpen,
@@ -727,12 +772,15 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       isWorkspaceModalOpen,
       setIsWorkspaceModalOpen,
       addItem,
+      createItem,
       updateItem,
       toggleItemCheck,
+      convertToTask,
       convertItemType,
       moveItem,
       archiveItem,
       restoreItem,
+      deleteItem,
       softDeleteItem,
       permanentlyDeleteItem,
       permanentlyDeleteItems,
@@ -754,18 +802,24 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       activity,
       activeView,
       isLoading,
+      currentWorkspaceId,
+      setCurrentWorkspace,
+      currentSession,
       isQuickCaptureOpen,
       isSearchOpen,
       isSettingsOpen,
       isShortcutsOpen,
       isWorkspaceModalOpen,
       addItem,
+      createItem,
       updateItem,
       toggleItemCheck,
+      convertToTask,
       convertItemType,
       moveItem,
       archiveItem,
       restoreItem,
+      deleteItem,
       softDeleteItem,
       permanentlyDeleteItems,
       permanentlyDeleteItem,

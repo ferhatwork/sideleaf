@@ -10,13 +10,15 @@ It is deliberately **not** a generic notes app, Notion clone, project management
 ---
 
 ## Highlights
-
-- **Instant Capture**: Press `Ctrl+Space` (or `Cmd+Space`) anywhere to capture thoughts in 1–2 seconds. No title required, no project folder selection required.
+ 
+- **Work Surface, Not a Dashboard**: Designed like a digital sheet of paper beside your keyboard. No card-heavy clutter, no KPI counters, and no forced categories.
+- **Instant Thought Capture**: Press `Ctrl+Space` (or `Cmd+Space`) anywhere to capture thoughts in under 1 second. Starts as clean text by default—no note type or folder decision required.
+- **Capture First, Structure Later**: Keep notes as raw scratchpad lines, or transform them into checklist tasks (`Ctrl+Enter`), architectural decisions, or quotes when context demands it.
+- **Working On Context**: Silently associates thoughts with your active workspace without prompting forms.
+- **Sub-Millisecond External Memory**: Press `Ctrl+K` for an instant keyboard-driven search palette with multi-factor relevance ranking showing context snippets ("What was I doing?").
 - **Local-First & Private**: 100% of your notes and workspaces stay in your browser's IndexedDB. Zero accounts, zero server dependencies, zero trackers, and zero telemetry.
-- **Progressive Structure**: Start in `Scratch`. Later, convert thoughts into actionable checklist tasks (`Ctrl+Enter`), group them into lightweight `Workspaces`, or `Archive` them.
-- **Sub-Millisecond Search**: Press `Ctrl+K` for an instant keyboard-driven search palette with multi-factor relevance ranking.
 - **Data Portability**: Export your entire work into versioned `.workpad` portable files or clean Markdown (`.md`) at any moment.
-- **Ultra Lightweight**: Static build is under 85 kB gzipped with sub-second startup and 0 bloat.
+- **Ultra Lightweight**: Static bundle is under 88 kB gzipped with sub-second startup and 0 bloat.
 - **PWA & Offline Ready**: Works completely with Wi-Fi turned off or on airplane mode.
 
 ---

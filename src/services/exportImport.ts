@@ -42,7 +42,7 @@ export function validateWorkpadData(raw: unknown): ValidationResult {
     if (typeof item.content !== 'string') {
       return { valid: false, error: `Item "${item.id}" is missing valid string "content".` };
     }
-    if (!item.type || !['text', 'checklist', 'quote', 'link', 'divider'].includes(item.type)) {
+    if (!item.type || !['text', 'checklist', 'quote', 'link', 'divider', 'decision'].includes(item.type)) {
       return { valid: false, error: `Item "${item.id}" has invalid type "${item.type}".` };
     }
   }
@@ -123,6 +123,9 @@ export function exportWorkspaceToMarkdown(
         break;
       case 'divider':
         lines.push('\n---\n');
+        break;
+      case 'decision':
+        lines.push(`- **[Decision]** ${item.content}`);
         break;
       case 'text':
       default:

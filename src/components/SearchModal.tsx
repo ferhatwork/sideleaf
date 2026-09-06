@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Item, Workspace } from '../types';
 import { searchItems } from '../services/search';
-import { Search, X, ArrowUpDown, CornerDownLeft, ExternalLink, CheckSquare, FileText } from 'lucide-react';
+import { formatTimeAgo } from '../utils/format';
+import { Search, X, ArrowUpDown, CornerDownLeft, ExternalLink, CheckSquare, FileText, Quote, Sparkles } from 'lucide-react';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -43,12 +44,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     if (!query.trim()) {
       return items
         .filter((i) => i.status === 'active')
-        .slice(0, 8)
+        .slice(0, 10)
         .map((item) => ({
           item,
           score: 1,
           matchedFields: ['recent'],
-          matchedSnippet: item.content.slice(0, 100),
+          matchedSnippet: item.content.slice(0, 120),
         }));
     }
     return searchItems({
@@ -129,8 +130,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         </span>
 
         {/* Search header */}
-        <div className="flex items-center px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 gap-3">
-          <Search className="w-5 h-5 text-neutral-400" />
+        <div className="flex items-center px-4 py-3 border-b border-neutral-200/80 dark:border-neutral-800 gap-3">
+          <Search className="w-4 h-4 text-neutral-400" />
           <input
             ref={inputRef}
             type="text"
@@ -154,13 +155,19 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         {/* Results list */}
         <div className="flex-1 overflow-y-auto p-2 divide-y divide-neutral-100 dark:divide-neutral-800/40">
           {searchResults.length === 0 ? (
-            <div className="p-8 text-center text-sm text-neutral-400">
-              No matching notes found for "{query}".
+            <div className="p-12 text-center text-sm text-neutral-400 dark:text-neutral-500 space-y-1">
+              <p className="font-medium text-neutral-700 dark:text-neutral-300">Nothing found.</p>
+              <p className="text-xs text-neutral-400 dark:text-neutral-500">
+                Try a different word or search source/title.
+              </p>
             </div>
           ) : (
             searchResults.map((res, idx) => {
               const item = res.item;
               const isSelected = idx === selectedIndex;
+              const firstLine = item.content.split('\n')[0] || item.content;
+              const excerpt = res.matchedSnippet && res.matchedSnippet !== firstLine ? res.matchedSnippet : null;
+
               return (
                 <div
                   key={item.id}
@@ -171,39 +178,61 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`px-3 py-2.5 rounded-lg cursor-pointer transition-colors flex items-start justify-between gap-3 ${
                     isSelected
-                      ? 'bg-blue-50 dark:bg-neutral-800/80 text-blue-950 dark:text-blue-200'
-                      : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/40'
+                      ? 'bg-neutral-100 dark:bg-neutral-800/80 text-neutral-950 dark:text-neutral-100'
+                      : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/30'
                   }`}
                 >
                   <div className="flex items-start gap-2.5 min-w-0">
                     <span className="mt-0.5 text-neutral-400 flex-shrink-0">
                       {item.type === 'checklist' ? (
                         <CheckSquare className="w-4 h-4" />
+                      ) : item.type === 'quote' ? (
+                        <Quote className="w-4 h-4" />
                       ) : item.type === 'link' ? (
                         <ExternalLink className="w-4 h-4" />
+                      ) : item.type === 'decision' ? (
+                        <Sparkles className="w-4 h-4 text-purple-500" />
                       ) : (
                         <FileText className="w-4 h-4" />
                       )}
                     </span>
                     <div className="min-w-0">
+                      {/* Item main line */}
                       <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 line-clamp-1">
-                        {res.matchedSnippet}
+                        {firstLine}
                       </p>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">
-                        <span className="font-medium text-neutral-500 dark:text-neutral-400">
+
+                      {/* Context line: Workspace · Recency */}
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500">
+                        <span className="font-medium text-neutral-600 dark:text-neutral-400">
                           {getWorkspaceName(item.workspaceId)}
                         </span>
+                        <span>·</span>
+                        <span>{formatTimeAgo(item.updatedAt)}</span>
                         {item.status === 'archived' && (
-                          <span className="px-1 py-0.2 rounded bg-neutral-200 dark:bg-neutral-700 text-[10px]">
-                            Archived
-                          </span>
+                          <>
+                            <span>·</span>
+                            <span className="px-1 py-0.2 rounded bg-neutral-200 dark:bg-neutral-700 text-[10px]">
+                              Archived
+                            </span>
+                          </>
                         )}
                         {item.source?.domain && (
-                          <span className="truncate max-w-[150px] font-mono">
-                            {item.source.domain}
-                          </span>
+                          <>
+                            <span>·</span>
+                            <span className="truncate max-w-[150px] font-mono">
+                              {item.source.domain}
+                            </span>
+                          </>
                         )}
                       </div>
+
+                      {/* Excerpt line */}
+                      {excerpt && (
+                        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 font-mono italic line-clamp-1">
+                          “{excerpt}”
+                        </p>
+                      )}
                     </div>
                   </div>
 
