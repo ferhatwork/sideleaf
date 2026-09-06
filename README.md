@@ -1,5 +1,12 @@
 # Workpad
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![React 19](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-6.2-646cff.svg)](https://vitejs.dev/)
+[![PWA](https://img.shields.io/badge/PWA-Ready-success.svg)](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps)
+[![Local--First](https://img.shields.io/badge/Storage-Local--First%20(IndexedDB)-emerald.svg)](#architecture--data-safety)
+
 > **A tiny, local-first work surface for computer work.**  
 > *Open it. Capture the thought. Keep working. Organize later.*
 
@@ -59,7 +66,7 @@ It is deliberately **not** a generic notes app, Notion clone, project management
 Workpad is designed so that **non-technical users do not need Node.js, npm, a terminal, or a dev server.**
 
 ### Launching on Windows (One-Click)
-- Double-click **[Workpad.bat](file:///C:/Users/Ferhat%20%C3%96zdemir/Desktop/workpad/Workpad.bat)** in the Workpad folder.
+- Double-click **`Workpad.bat`** in the Workpad folder.
 - Workpad will automatically start a minimal, secure local process on loopback `http://127.0.0.1:[port]/` using built-in Windows PowerShell and immediately open your default browser.
 - *(Optional)* Double-click `scripts/create-desktop-shortcut.bat` to create a dedicated desktop shortcut with the Workpad icon.
 
@@ -93,16 +100,13 @@ npm install
 # 2. Start local development server with Vite HMR
 npm run dev
 
-# 3. Run automated tests (Vitest)
-npm test
-
-# 4. Build production static bundle (dist/)
+# 3. Build production static bundle (dist/)
 npm run build
 
-# 5. Run zero-dependency local production launcher
+# 4. Run zero-dependency local production launcher
 npm run launch
 
-# 6. Package standalone portable distribution bundle
+# 5. Package standalone portable distribution bundle
 npm run package
 ```
 

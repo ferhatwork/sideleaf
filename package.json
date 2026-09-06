@@ -1,16 +1,25 @@
 {
   "name": "workpad",
-  "private": true,
   "version": "1.0.0",
+  "description": "A tiny, local-first work surface for computer work.",
   "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "local-first",
+    "notes",
+    "scratchpad",
+    "productivity",
+    "pwa",
+    "offline-first",
+    "react",
+    "typescript"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "launch": "node scripts/launcher.mjs",
-    "package": "node scripts/package-dist.mjs",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "package": "node scripts/package-dist.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.16.0",
@@ -26,7 +35,6 @@
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vite": "^6.2.0",
-    "vitest": "^3.0.7"
+    "vite": "^6.2.0"
   }
 }
