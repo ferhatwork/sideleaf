@@ -3,7 +3,7 @@ import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput, QuickInputHandle } from './QuickInput';
 import { formatTimeAgo, formatLocalizedDate } from '../utils/format';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface TodayViewProps {
   items: Item[];
@@ -32,7 +32,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onDelete,
   onNavigateToWorkspace,
 }) => {
-  const { t, locale, currentWorkspaceId } = useWorkpad();
+  const { t, locale, currentWorkspaceId } = useSideleaf();
   const quickInputRef = useRef<QuickInputHandle>(null);
   const startOfToday = new Date().setHours(0, 0, 0, 0);
 

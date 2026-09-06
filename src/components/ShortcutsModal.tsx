@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { X, Command } from 'lucide-react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface ShortcutsModalProps {
   isOpen: boolean;
@@ -8,7 +8,7 @@ interface ShortcutsModalProps {
 }
 
 export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
-  const { t, locale } = useWorkpad();
+  const { t, locale } = useSideleaf();
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -69,7 +69,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
     >
       <div
         ref={modalRef}
-        className="w-full max-w-md rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden"
+        className="w-full max-w-md rounded-xl border border-neutral-200 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">

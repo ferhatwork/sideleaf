@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } f
 import { ItemType } from '../types';
 import { ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 export interface QuickInputHandle {
   focus: () => void;
@@ -26,7 +26,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   placeholder,
   autoFocus = false,
 }, ref) => {
-  const { t } = useWorkpad();
+  const { t } = useSideleaf();
   const effectivePlaceholder = placeholder || t.capture.focusedPlaceholder;
 
   const [content, setContent] = useState('');
@@ -129,7 +129,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
           }
         }}
         aria-label={`${t.capture.idlePlaceholder} (${t.capture.saveHint})`}
-        className="group w-full py-2 px-3.5 rounded-lg border border-neutral-200/70 dark:border-workpad-dark-border/70 bg-white/60 dark:bg-workpad-dark-surface/40 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all cursor-text flex items-center justify-between text-neutral-400 dark:text-neutral-500 focus-ring"
+        className="group w-full py-2 px-3.5 rounded-lg border border-neutral-200/70 dark:border-sideleaf-dark-border/70 bg-white/60 dark:bg-sideleaf-dark-surface/40 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all cursor-text flex items-center justify-between text-neutral-400 dark:text-neutral-500 focus-ring"
       >
         <div className="flex items-center gap-2">
           <span className="text-neutral-400 dark:text-neutral-500 text-sm font-light leading-none group-hover:text-neutral-700 dark:group-hover:text-neutral-300 transition-colors">
@@ -147,7 +147,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   }
 
   return (
-    <div className="rounded-lg border border-neutral-300/80 dark:border-neutral-700 bg-white dark:bg-workpad-dark-surface shadow-xs transition-all p-3">
+    <div className="rounded-lg border border-neutral-300/80 dark:border-neutral-700 bg-white dark:bg-sideleaf-dark-surface shadow-xs transition-all p-3">
       <textarea
         ref={textareaRef}
         value={content}

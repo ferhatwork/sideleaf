@@ -6,13 +6,21 @@
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f1117" />
-    <meta name="description" content="Workpad — Tiny, local-first work surface for computer work. Open it. Capture thoughts. Keep working. Organize later." />
+    <meta name="application-name" content="Sideleaf" />
+    <meta name="apple-mobile-web-app-title" content="Sideleaf" />
+    <meta name="description" content="Sideleaf — a tiny, local-first work surface for computer work. Open it. Capture thoughts. Keep working. Organize later." />
+    <meta property="og:title" content="Sideleaf" />
+    <meta property="og:description" content="Sideleaf — a tiny, local-first work surface for computer work." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Sideleaf" />
+    <meta name="twitter:description" content="Sideleaf — a tiny, local-first work surface for computer work." />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>Workpad — Local-First Work Surface</title>
+    <title>Sideleaf</title>
     <script>
       // Prevent theme flash (rendering-hydration-no-flicker)
       try {
-        const stored = localStorage.getItem('workpad_ls_settings');
+        const stored = localStorage.getItem('sideleaf_ls_settings') || localStorage.getItem('workpad_ls_settings');
         if (stored) {
           const settings = JSON.parse(stored);
           const theme = settings.theme;
@@ -27,7 +35,7 @@
       } catch (e) {}
     </script>
   </head>
-  <body class="bg-workpad-light-bg text-workpad-light-text dark:bg-workpad-dark-bg dark:text-workpad-dark-text antialiased selection:bg-blue-500 selection:text-white">
+  <body class="bg-sideleaf-light-bg text-sideleaf-light-text dark:bg-sideleaf-dark-bg dark:text-sideleaf-dark-text antialiased selection:bg-blue-500 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>

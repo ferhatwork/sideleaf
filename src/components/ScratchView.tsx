@@ -3,7 +3,7 @@ import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput } from './QuickInput';
 import { FileEdit, Filter, ChevronDown } from 'lucide-react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface ScratchViewProps {
   items: Item[];
@@ -28,7 +28,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
   onArchive,
   onDelete,
 }) => {
-  const { t, locale } = useWorkpad();
+  const { t, locale } = useSideleaf();
   const [filterType, setFilterType] = useState<string>('all');
   const [visibleCount, setVisibleCount] = useState<number>(50);
 

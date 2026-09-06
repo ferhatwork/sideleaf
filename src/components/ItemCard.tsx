@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Item, ItemType, Workspace, Locale } from '../types';
 import { formatTimeAgo, extractDomain } from '../utils/format';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 import {
   CheckSquare,
   Square,
@@ -44,7 +44,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   onDelete,
   showWorkspaceBadge = true,
 }) => {
-  const { t, locale: ctxLocale } = useWorkpad();
+  const { t, locale: ctxLocale } = useSideleaf();
   const activeLocale = locale || ctxLocale || 'en';
 
   const [isEditing, setIsEditing] = useState(false);
@@ -177,7 +177,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     <div
       className={`group relative rounded-lg px-3 py-2 -mx-3 transition-colors ${
         isEditing
-          ? 'bg-neutral-100/70 dark:bg-workpad-dark-elevated shadow-xs ring-1 ring-neutral-300 dark:ring-neutral-700'
+          ? 'bg-neutral-100/70 dark:bg-sideleaf-dark-elevated shadow-xs ring-1 ring-neutral-300 dark:ring-neutral-700'
           : 'hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40'
       }`}
     >
@@ -299,7 +299,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
                 {showMenu && (
                   <div
-                    className="absolute right-0 top-6 z-30 w-48 py-1 rounded-lg bg-white dark:bg-workpad-dark-elevated shadow-lg border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-700 dark:text-neutral-200"
+                    className="absolute right-0 top-6 z-30 w-48 py-1 rounded-lg bg-white dark:bg-sideleaf-dark-elevated shadow-lg border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-700 dark:text-neutral-200"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Convert to task / Convert to note */}

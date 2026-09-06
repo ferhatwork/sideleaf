@@ -134,8 +134,10 @@ export interface SettingsTranslations {
   themeDescription: string;
   backupSection: string;
   backupDescription: string;
-  exportWorkpad: string;
-  exportWorkpadDesc: string;
+  exportSideleaf: string;
+  exportSideleafDesc: string;
+  exportWorkpad?: string;
+  exportWorkpadDesc?: string;
   exportMarkdown: string;
   exportMarkdownDesc: string;
   importSection: string;

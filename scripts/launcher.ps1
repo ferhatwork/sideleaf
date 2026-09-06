@@ -1,4 +1,4 @@
-# Workpad - Windows PowerShell Launcher
+# Sideleaf - Windows PowerShell Launcher
 # Local-first, zero-dependency launcher (No Node.js or npm required)
 # Strict 127.0.0.1 loopback binding, automatic port selection, SPA fallback, traversal prevention
 
@@ -14,9 +14,9 @@ if (-not (Test-Path $distDir)) {
 $indexPath = Join-Path $distDir "index.html"
 if (-not (Test-Path $indexPath)) {
     Write-Host ""
-    Write-Host "  Workpad could not start." -ForegroundColor Red
+    Write-Host "  Sideleaf could not start." -ForegroundColor Red
     Write-Host "  Production build directory not found: $distDir" -ForegroundColor Yellow
-    Write-Host "  Please build Workpad first (e.g. npm run build) before launching." -ForegroundColor Gray
+    Write-Host "  Please build Sideleaf first (e.g. npm run build) before launching." -ForegroundColor Gray
     Write-Host ""
     Write-Host "Press any key to exit..."
     [Console]::ReadKey($true) | Out-Null
@@ -38,7 +38,7 @@ try {
 }
 catch {
     Write-Host ""
-    Write-Host "  Workpad could not start." -ForegroundColor Red
+    Write-Host "  Sideleaf could not start." -ForegroundColor Red
     Write-Host "  Failed to allocate a local port: $_" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Press any key to exit..."
@@ -56,7 +56,7 @@ try {
 }
 catch {
     Write-Host ""
-    Write-Host "  Workpad could not start." -ForegroundColor Red
+    Write-Host "  Sideleaf could not start." -ForegroundColor Red
     Write-Host "  Another local service may be using port $port or permissions are restricted." -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Press any key to exit..."
@@ -97,7 +97,7 @@ catch {
     # If Start-Process fails, the user will still see the URL below
 }
 
-Write-Host "Workpad is running locally at http://127.0.0.1:$port/"
+Write-Host "Sideleaf is running locally at http://127.0.0.1:$port/"
 Write-Host "Press Ctrl+C to close this window when done."
 
 try {

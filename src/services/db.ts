@@ -1,13 +1,145 @@
 import { Item, Workspace, UserSettings, ActivityLog } from '../types';
 
-const DB_NAME = 'workpad_db';
-const DB_VERSION = 1;
+// Primary Sideleaf Database
+export const DB_NAME = 'sideleaf_db';
+export const DB_VERSION = 1;
+
+// Legacy Workpad Database (preserved for zero-data-loss migration)
+export const LEGACY_DB_NAME = 'workpad_db';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 let isIdbSupported = typeof indexedDB !== 'undefined';
 
-function openDatabase(): Promise<IDBDatabase> {
-  if (!isIdbSupported) {
+export async function migrateFromLegacyWorkpad(newDb: IDBDatabase): Promise<void> {
+  try {
+    // Check if migration was already recorded
+    const isMigrated = await new Promise<boolean>((resolve) => {
+      try {
+        const tx = newDb.transaction('settings', 'readonly');
+        const store = tx.objectStore('settings');
+        const req = store.get('migrated_from_workpad');
+        req.onsuccess = () => resolve(Boolean(req.result?.value));
+        req.onerror = () => resolve(false);
+      } catch {
+        resolve(false);
+      }
+    });
+
+    if (isMigrated) return;
+
+    // Check if legacy workpad_db exists and has data
+    const legacyDb = await new Promise<IDBDatabase | null>((resolve) => {
+      try {
+        const req = indexedDB.open(LEGACY_DB_NAME);
+        req.onsuccess = () => {
+          const db = req.result;
+          if (db.objectStoreNames.contains('items') || db.objectStoreNames.contains('workspaces')) {
+            resolve(db);
+          } else {
+            db.close();
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+
+    if (legacyDb) {
+      // Read legacy records
+      const legacyItems = await new Promise<Item[]>((resolve) => {
+        try {
+          if (!legacyDb.objectStoreNames.contains('items')) return resolve([]);
+          const tx = legacyDb.transaction('items', 'readonly');
+          const req = tx.objectStore('items').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        } catch {
+          resolve([]);
+        }
+      });
+
+      const legacyWorkspaces = await new Promise<Workspace[]>((resolve) => {
+        try {
+          if (!legacyDb.objectStoreNames.contains('workspaces')) return resolve([]);
+          const tx = legacyDb.transaction('workspaces', 'readonly');
+          const req = tx.objectStore('workspaces').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        } catch {
+          resolve([]);
+        }
+      });
+
+      const legacySettings = await new Promise<UserSettings | null>((resolve) => {
+        try {
+          if (!legacyDb.objectStoreNames.contains('settings')) return resolve(null);
+          const tx = legacyDb.transaction('settings', 'readonly');
+          const req = tx.objectStore('settings').get('user_settings');
+          req.onsuccess = () => resolve(req.result?.value || null);
+          req.onerror = () => resolve(null);
+        } catch {
+          resolve(null);
+        }
+      });
+
+      const legacyActivity = await new Promise<ActivityLog[]>((resolve) => {
+        try {
+          if (!legacyDb.objectStoreNames.contains('activity')) return resolve([]);
+          const tx = legacyDb.transaction('activity', 'readonly');
+          const req = tx.objectStore('activity').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        } catch {
+          resolve([]);
+        }
+      });
+
+      legacyDb.close();
+
+      // Write into sideleaf_db if records were found
+      if (legacyItems.length > 0 || legacyWorkspaces.length > 0 || legacySettings || legacyActivity.length > 0) {
+        await new Promise<void>((resolve) => {
+          const tx = newDb.transaction(['items', 'workspaces', 'settings', 'activity'], 'readwrite');
+          const itemStore = tx.objectStore('items');
+          for (const item of legacyItems) {
+            itemStore.put(item);
+          }
+          const wsStore = tx.objectStore('workspaces');
+          for (const ws of legacyWorkspaces) {
+            wsStore.put(ws);
+          }
+          const setStore = tx.objectStore('settings');
+          if (legacySettings) {
+            setStore.put({ key: 'user_settings', value: legacySettings });
+          }
+          setStore.put({ key: 'migrated_from_workpad', value: true });
+
+          const actStore = tx.objectStore('activity');
+          for (const act of legacyActivity) {
+            actStore.put(act);
+          }
+
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+          tx.onabort = () => resolve();
+        });
+      }
+    }
+
+    // Record migration completed flag in sideleaf_db
+    try {
+      const tx = newDb.transaction('settings', 'readwrite');
+      tx.objectStore('settings').put({ key: 'migrated_from_workpad', value: true });
+    } catch {}
+  } catch (err) {
+    console.warn('Sideleaf: legacy data migration check completed with note:', err);
+  }
+}
+
+export function openDatabase(): Promise<IDBDatabase> {
+  if (typeof indexedDB === 'undefined' || !isIdbSupported) {
     return Promise.reject(new Error('IndexedDB not supported'));
   }
 
@@ -43,13 +175,19 @@ function openDatabase(): Promise<IDBDatabase> {
         }
       };
 
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = async () => {
+        const db = request.result;
+        // Perform one-time legacy migration safely in background
+        await migrateFromLegacyWorkpad(db);
+        resolve(db);
+      };
+
       request.onerror = () => {
         isIdbSupported = false;
         reject(request.error);
       };
       request.onblocked = () => {
-        console.warn('Workpad IndexedDB blocked by another open connection');
+        console.warn('Sideleaf IndexedDB blocked by another open connection');
       };
     } catch (err) {
       isIdbSupported = false;
@@ -60,15 +198,32 @@ function openDatabase(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-// Fallback LocalStorage Keys
-const LS_ITEMS = 'workpad_ls_items';
-const LS_WORKSPACES = 'workpad_ls_workspaces';
-const LS_SETTINGS = 'workpad_ls_settings';
-const LS_ACTIVITY = 'workpad_ls_activity';
+// Sideleaf LocalStorage Keys
+export const LS_ITEMS = 'sideleaf_ls_items';
+export const LS_WORKSPACES = 'sideleaf_ls_workspaces';
+export const LS_SETTINGS = 'sideleaf_ls_settings';
+export const LS_ACTIVITY = 'sideleaf_ls_activity';
 
-function safeLsGet<T>(key: string, fallback: T): T {
+// Legacy LocalStorage Keys mapping for fallback migration
+export const LEGACY_LS_MAP: Record<string, string> = {
+  [LS_ITEMS]: 'workpad_ls_items',
+  [LS_WORKSPACES]: 'workpad_ls_workspaces',
+  [LS_SETTINGS]: 'workpad_ls_settings',
+  [LS_ACTIVITY]: 'workpad_ls_activity'
+};
+
+export function safeLsGet<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    let raw = localStorage.getItem(key);
+    // Legacy migration check: if sideleaf key is missing, check workpad key
+    if (!raw && LEGACY_LS_MAP[key]) {
+      const legacyRaw = localStorage.getItem(LEGACY_LS_MAP[key]);
+      if (legacyRaw) {
+        raw = legacyRaw;
+        // Copy to new key safely without destroying legacy key
+        localStorage.setItem(key, legacyRaw);
+      }
+    }
     if (!raw) return fallback;
     return JSON.parse(raw);
   } catch {
@@ -76,12 +231,24 @@ function safeLsGet<T>(key: string, fallback: T): T {
   }
 }
 
-function safeLsSet(key: string, value: unknown): void {
+export function safeLsSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
-    console.error('Workpad storage quota exceeded or restricted', err);
+    console.error('Sideleaf storage quota exceeded or restricted', err);
   }
+}
+
+export function _resetDbForTests(): void {
+  if (dbPromise) {
+    dbPromise.then((d) => {
+      try {
+        d.close();
+      } catch {}
+    }).catch(() => {});
+  }
+  dbPromise = null;
+  isIdbSupported = typeof indexedDB !== 'undefined';
 }
 
 export const db = {
@@ -351,7 +518,7 @@ export const db = {
   async clearAllData(): Promise<void> {
     try {
       const idb = await openDatabase();
-      return await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const tx = idb.transaction(['items', 'workspaces', 'activity'], 'readwrite');
         tx.objectStore('items').clear();
         tx.objectStore('workspaces').clear();
@@ -360,10 +527,17 @@ export const db = {
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error);
       });
-    } catch {
-      safeLsSet(LS_ITEMS, []);
-      safeLsSet(LS_WORKSPACES, []);
-      safeLsSet(LS_ACTIVITY, []);
-    }
+    } catch {}
+
+    // Always clear both modern Sideleaf and legacy LocalStorage fallback keys
+    safeLsSet(LS_ITEMS, []);
+    safeLsSet(LS_WORKSPACES, []);
+    safeLsSet(LS_ACTIVITY, []);
+    try {
+      localStorage.removeItem('workpad_ls_items');
+      localStorage.removeItem('workpad_ls_workspaces');
+      localStorage.removeItem('workpad_ls_activity');
+    } catch {}
   }
 };
+

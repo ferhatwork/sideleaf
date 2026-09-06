@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActiveView, Workspace } from '../types';
 import { Search, Plus, Settings, Menu, HelpCircle, Download, X } from 'lucide-react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface HeaderProps {
   activeView: ActiveView;
@@ -23,10 +23,13 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenShortcuts,
   onToggleMobileSidebar,
 }) => {
-  const { t, locale, setLocale, canInstallPwa, installPwa } = useWorkpad();
+  const { t, locale, setLocale, canInstallPwa, installPwa } = useSideleaf();
   const [isHeaderDismissed, setIsHeaderDismissed] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('workpad_pwa_header_dismissed') === 'true';
+      return (
+        localStorage.getItem('sideleaf_pwa_header_dismissed') === 'true' ||
+        localStorage.getItem('workpad_pwa_header_dismissed') === 'true'
+      );
     } catch {
       return false;
     }
@@ -52,12 +55,12 @@ export const Header: React.FC<HeaderProps> = ({
       case 'trash':
         return t.navigation.trash;
       default:
-        return 'Workpad';
+        return 'Sideleaf';
     }
   };
 
   return (
-    <header className="h-12 border-b border-neutral-200/70 dark:border-workpad-dark-border/80 bg-white/70 dark:bg-workpad-dark-bg/80 backdrop-blur-md sticky top-0 z-20 px-4 flex items-center justify-between gap-3">
+    <header className="h-12 border-b border-neutral-200/70 dark:border-sideleaf-dark-border/80 bg-white/70 dark:bg-sideleaf-dark-bg/80 backdrop-blur-md sticky top-0 z-20 px-4 flex items-center justify-between gap-3">
       {/* Left: Mobile toggle & view title or Working on context */}
       <div className="flex items-center gap-3 min-w-0">
         <button
@@ -97,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
       <button
         onClick={onOpenSearch}
         aria-label={`${t.search.dialogTitle} (Ctrl+K)`}
-        className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-200/80 dark:border-workpad-dark-border bg-neutral-50/50 dark:bg-neutral-900/40 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs w-64 md:w-80 transition-colors focus-ring"
+        className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-200/80 dark:border-sideleaf-dark-border bg-neutral-50/50 dark:bg-neutral-900/40 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs w-64 md:w-80 transition-colors focus-ring"
       >
         <Search className="w-3.5 h-3.5 flex-shrink-0" />
         <span className="flex-1 text-left truncate">{t.common.searchPlaceholder}</span>
@@ -152,7 +155,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => {
                 setIsHeaderDismissed(true);
                 try {
-                  localStorage.setItem('workpad_pwa_header_dismissed', 'true');
+                  localStorage.setItem('sideleaf_pwa_header_dismissed', 'true');
                 } catch {}
               }}
               className="p-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 rounded focus-ring"

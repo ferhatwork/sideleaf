@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Workpad - macOS & Linux Launcher
+# Sideleaf - macOS & Linux Launcher
 # Local-first launcher: detects node or python3, picks a free port on 127.0.0.1,
 # opens the browser, and serves the static production build.
 
@@ -12,7 +12,7 @@ INDEX_PATH="$DIST_DIR/index.html"
 
 if [ ! -f "$INDEX_PATH" ]; then
   echo ""
-  echo "  Workpad could not start."
+  echo "  Sideleaf could not start."
   echo "  Production build not found in: $DIST_DIR"
   echo "  Please run 'npm run build' first."
   echo ""
@@ -73,7 +73,7 @@ class SPAServer(http.server.SimpleHTTPRequestHandler):
         pass
 
 url = f"http://127.0.0.1:{port}/"
-print(f"Workpad is running locally at {url}")
+print(f"Sideleaf is running locally at {url}")
 print("Press Ctrl+C to close this window when done.")
 
 # Launch browser
@@ -93,8 +93,8 @@ EOF
 fi
 
 echo ""
-echo "  Workpad could not start."
+echo "  Sideleaf could not start."
 echo "  Neither Node.js nor Python 3 was detected on this system."
-echo "  Please install Node.js (https://nodejs.org) or Python 3 to run Workpad."
+echo "  Please install Node.js (https://nodejs.org) or Python 3 to run Sideleaf."
 echo ""
 exit 1

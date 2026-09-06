@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { Archive } from 'lucide-react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface ArchiveViewProps {
   items: Item[];
@@ -27,7 +27,7 @@ export const ArchiveView: React.FC<ArchiveViewProps> = ({
   onRestore,
   onDelete,
 }) => {
-  const { t, locale } = useWorkpad();
+  const { t, locale } = useSideleaf();
 
   const archivedItems = useMemo(
     () =>

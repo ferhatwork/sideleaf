@@ -109,8 +109,8 @@ export interface ActivityLog {
   timestamp: number;
 }
 
-export interface WorkpadExportData {
-  schema: 'workpad-v1';
+export interface SideleafExportData {
+  schema: 'sideleaf-v1' | 'workpad-v1';
   version: '1.0.0';
   exportedAt: string;
   workspaces: Workspace[];
@@ -118,6 +118,8 @@ export interface WorkpadExportData {
   settings?: UserSettings;
   activity?: ActivityLog[];
 }
+
+export type WorkpadExportData = SideleafExportData;
 
 export type ActiveView = 
   | { type: 'today' }

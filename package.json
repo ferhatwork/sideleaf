@@ -1,9 +1,9 @@
 {
-  "name": "workpad",
+  "name": "sideleaf",
   "version": "1.0.0",
-  "description": "A tiny, local-first work surface for computer work.",
+  "description": "Sideleaf — a tiny, local-first work surface for computer work.",
   "type": "module",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "keywords": [
     "local-first",
     "notes",
@@ -18,6 +18,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "launch": "node scripts/launcher.mjs",
     "package": "node scripts/package-dist.mjs"
   },
@@ -32,9 +33,11 @@
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "fake-indexeddb": "^6.2.5",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^5.0.0"
   }
 }

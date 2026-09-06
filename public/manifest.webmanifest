@@ -1,7 +1,7 @@
 {
-  "name": "Workpad",
-  "short_name": "Workpad",
-  "description": "Tiny, local-first work surface for computer work",
+  "name": "Sideleaf",
+  "short_name": "Sideleaf",
+  "description": "Sideleaf — a tiny, local-first work surface for computer work.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -11,6 +11,22 @@
   "categories": [
     "productivity",
     "utilities"
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Capture",
+      "short_name": "Capture",
+      "description": "Quickly capture a thought in Sideleaf",
+      "url": "/?action=capture",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Open Sideleaf",
+      "short_name": "Sideleaf",
+      "description": "Open Sideleaf work surface",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
   ],
   "icons": [
     {

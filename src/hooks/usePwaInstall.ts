@@ -14,7 +14,10 @@ export function usePwaInstall() {
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [isDismissed, setIsDismissed] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('workpad_pwa_dismissed') === 'true';
+      return (
+        localStorage.getItem('sideleaf_pwa_dismissed') === 'true' ||
+        localStorage.getItem('workpad_pwa_dismissed') === 'true'
+      );
     } catch {
       return false;
     }
@@ -61,14 +64,14 @@ export function usePwaInstall() {
         setDeferredPrompt(null);
       }
     } catch (err) {
-      console.error('Workpad PWA installation prompt failed:', err);
+      console.error('Sideleaf PWA installation prompt failed:', err);
     }
   }, [deferredPrompt]);
 
   const dismissPwaInstall = useCallback((): void => {
     setIsDismissed(true);
     try {
-      localStorage.setItem('workpad_pwa_dismissed', 'true');
+      localStorage.setItem('sideleaf_pwa_dismissed', 'true');
     } catch {
       // Ignore storage errors in private browsing
     }

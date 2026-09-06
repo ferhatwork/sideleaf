@@ -1,19 +1,19 @@
-# Workpad - Create Desktop Shortcut Script
-# Creates a Workpad shortcut on the current user's desktop pointing to Workpad.bat
+# Sideleaf - Create Desktop Shortcut Script
+# Creates a Sideleaf shortcut on the current user's desktop pointing to Sideleaf.bat
 
 $ErrorActionPreference = "Stop"
 
 $rootDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$batPath = Join-Path $rootDir "Workpad.bat"
+$batPath = Join-Path $rootDir "Sideleaf.bat"
 
 if (-not (Test-Path $batPath)) {
-    Write-Host "Error: Workpad.bat not found at $batPath" -ForegroundColor Red
+    Write-Host "Error: Sideleaf.bat not found at $batPath" -ForegroundColor Red
     exit 1
 }
 
 # Resolve user Desktop path
 $desktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-$shortcutPath = Join-Path $desktopPath "Workpad.lnk"
+$shortcutPath = Join-Path $desktopPath "Sideleaf.lnk"
 
 # Locate icon (prefers dist/icon.ico, then public/icon.ico, then root icon.ico)
 $iconPath = Join-Path $rootDir "dist\icon.ico"
@@ -29,7 +29,7 @@ try {
     $shortcut = $wscript.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = $batPath
     $shortcut.WorkingDirectory = $rootDir
-    $shortcut.Description = "Workpad - Local-First Work Surface"
+    $shortcut.Description = "Sideleaf - Local-First Work Surface"
 
     if (Test-Path $iconPath) {
         $shortcut.IconLocation = "$iconPath,0"
@@ -38,7 +38,7 @@ try {
     $shortcut.Save()
 
     Write-Host ""
-    Write-Host "  Workpad desktop shortcut created successfully!" -ForegroundColor Green
+    Write-Host "  Sideleaf desktop shortcut created successfully!" -ForegroundColor Green
     Write-Host "  Location: $shortcutPath" -ForegroundColor Gray
     Write-Host "  Target:   $batPath" -ForegroundColor Gray
     Write-Host ""

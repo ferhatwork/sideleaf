@@ -42,5 +42,5 @@
 }
 
 .focus-ring {
-  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-workpad-dark-bg;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-sideleaf-dark-bg;
 }

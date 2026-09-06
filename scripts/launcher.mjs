@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Workpad - Cross-Platform Node.js Launcher
+ * Sideleaf - Cross-Platform Node.js Launcher
  * Zero-dependency static server strictly bound to 127.0.0.1
  */
 
@@ -25,7 +25,7 @@ if (!fs.existsSync(distDir)) {
 const indexPath = path.join(distDir, 'index.html');
 
 if (!fs.existsSync(indexPath)) {
-  console.error('\n  \x1b[31mWorkpad could not start.\x1b[0m');
+  console.error('\n  \x1b[31mSideleaf could not start.\x1b[0m');
   console.error(`  \x1b[33mProduction build not found in: ${distDir}\x1b[0m`);
   console.error('  Please run "npm run build" first before launching.\n');
   process.exit(1);
@@ -139,14 +139,14 @@ server.listen(0, '127.0.0.1', () => {
   const port = addr.port;
   const url = `http://127.0.0.1:${port}/`;
 
-  console.log(`Workpad is running locally at ${url}`);
+  console.log(`Sideleaf is running locally at ${url}`);
   console.log('Press Ctrl+C to close this window when done.');
 
   openBrowser(url);
 });
 
 server.on('error', (err) => {
-  console.error('\n  \x1b[31mWorkpad could not start.\x1b[0m');
+  console.error('\n  \x1b[31mSideleaf could not start.\x1b[0m');
   console.error(`  \x1b[33mError: ${err.message}\x1b[0m\n`);
   process.exit(1);
 });

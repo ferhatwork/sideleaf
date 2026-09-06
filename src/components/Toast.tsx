@@ -27,7 +27,7 @@ export const Toast: React.FC<ToastProps> = ({
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-workpad-dark-elevated shadow-xl text-xs text-neutral-800 dark:text-neutral-200 animate-in slide-in-from-bottom-3 duration-150"
+      className="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-sideleaf-dark-elevated shadow-xl text-xs text-neutral-800 dark:text-neutral-200 animate-in slide-in-from-bottom-3 duration-150"
     >
       <span>{message}</span>
 

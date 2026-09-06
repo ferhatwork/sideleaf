@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Item, Workspace } from '../types';
 import { searchItems } from '../services/search';
 import { formatTimeAgo } from '../utils/format';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 import { Search, X, ArrowUpDown, CornerDownLeft, ExternalLink, CheckSquare, FileText, Quote, Sparkles } from 'lucide-react';
 
 interface SearchModalProps {
@@ -22,7 +22,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onSelectItem,
   activeWorkspaceId = null,
 }) => {
-  const { t, locale } = useWorkpad();
+  const { t, locale } = useSideleaf();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -124,7 +124,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     >
       <div
         ref={modalRef}
-        className="w-full max-w-2xl rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+        className="w-full max-w-2xl rounded-xl border border-neutral-200 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <span id="search-dialog-title" className="sr-only">

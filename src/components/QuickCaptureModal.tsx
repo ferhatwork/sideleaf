@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ItemType, Workspace } from '../types';
 import { X, ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface QuickCaptureModalProps {
   isOpen: boolean;
@@ -23,7 +23,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
   workspaces,
   activeWorkspaceId = null,
 }) => {
-  const { t } = useWorkpad();
+  const { t } = useSideleaf();
   const [content, setContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
   const [workspaceId, setWorkspaceId] = useState<string | null>(activeWorkspaceId);
@@ -128,7 +128,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
     >
       <div
         ref={modalRef}
-        className="w-full max-w-xl rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden"
+        className="w-full max-w-xl rounded-xl border border-neutral-200 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between">

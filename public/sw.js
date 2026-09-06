@@ -1,9 +1,9 @@
 /**
- * Workpad Offline Service Worker
+ * Sideleaf Offline Service Worker
  * SPEC Sections 11, 12, 23, 32, 33
  */
 
-const CACHE_NAME = 'workpad-v1.0.0';
+const CACHE_NAME = 'sideleaf-v1.0.0';
 
 const STATIC_ASSETS = [
   '/',

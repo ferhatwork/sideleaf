@@ -1,9 +1,9 @@
-import { WorkpadExportData, Workspace, Item, UserSettings, ActivityLog } from '../types';
+import { SideleafExportData, Workspace, Item, UserSettings, ActivityLog } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
   error?: string;
-  data?: WorkpadExportData;
+  data?: SideleafExportData;
   stats?: {
     workspacesCount: number;
     itemsCount: number;
@@ -11,17 +11,18 @@ export interface ValidationResult {
   };
 }
 
-export function validateWorkpadData(raw: unknown): ValidationResult {
+export function validateSideleafData(raw: unknown): ValidationResult {
   if (!raw || typeof raw !== 'object') {
     return { valid: false, error: 'Invalid file format: content must be a JSON object.' };
   }
 
-  const candidate = raw as Partial<WorkpadExportData>;
+  const candidate = raw as Partial<SideleafExportData>;
 
-  if (candidate.schema !== 'workpad-v1') {
+  // Allow both modern 'sideleaf-v1' and legacy 'workpad-v1' schemas for seamless upgrade
+  if (candidate.schema !== 'sideleaf-v1' && candidate.schema !== 'workpad-v1') {
     return {
       valid: false,
-      error: `Unsupported schema "${candidate.schema || 'unknown'}". Expected "workpad-v1".`,
+      error: `Unsupported schema "${candidate.schema || 'unknown'}". Expected "sideleaf-v1" or "workpad-v1".`,
     };
   }
 
@@ -57,7 +58,7 @@ export function validateWorkpadData(raw: unknown): ValidationResult {
 
   return {
     valid: true,
-    data: candidate as WorkpadExportData,
+    data: candidate as SideleafExportData,
     stats: {
       workspacesCount: candidate.workspaces.length,
       itemsCount: candidate.items.length,
@@ -66,14 +67,17 @@ export function validateWorkpadData(raw: unknown): ValidationResult {
   };
 }
 
+// Backward compatibility export alias
+export const validateWorkpadData = validateSideleafData;
+
 export function generateExportData(
   workspaces: Workspace[],
   items: Item[],
   settings?: UserSettings,
   activity?: ActivityLog[]
-): WorkpadExportData {
+): SideleafExportData {
   return {
-    schema: 'workpad-v1',
+    schema: 'sideleaf-v1',
     version: '1.0.0',
     exportedAt: new Date().toISOString(),
     workspaces: [...workspaces],
@@ -81,6 +85,11 @@ export function generateExportData(
     settings: settings ? { ...settings } : undefined,
     activity: activity ? [...activity] : undefined,
   };
+}
+
+export function getExportFilename(date: Date = new Date()): string {
+  const dateStr = date.toISOString().split('T')[0];
+  return `sideleaf-backup-${dateStr}.sideleaf`;
 }
 
 export function downloadJsonFile(filename: string, data: object): void {

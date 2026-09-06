@@ -104,7 +104,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     >
       <div
         ref={modalRef}
-        className="w-full max-w-md rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden"
+        className="w-full max-w-md rounded-xl border border-neutral-200 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
@@ -151,7 +151,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   onClick={() => setColor(c)}
                   aria-label={`Select color ${c}`}
                   className={`w-6 h-6 rounded-full transition-transform focus-ring ${
-                    color === c ? 'scale-125 ring-2 ring-offset-2 ring-neutral-400 dark:ring-offset-workpad-dark-surface' : 'hover:scale-110'
+                    color === c ? 'scale-125 ring-2 ring-offset-2 ring-neutral-400 dark:ring-offset-sideleaf-dark-surface' : 'hover:scale-110'
                   }`}
                   style={{ backgroundColor: c }}
                 />

@@ -1,11 +1,11 @@
-import { WorkpadProvider } from './hooks/useWorkpad';
+import { SideleafProvider } from './hooks/useSideleaf';
 import { AppShell } from './components/AppShell';
 
 export function App() {
   return (
-    <WorkpadProvider>
+    <SideleafProvider>
       <AppShell />
-    </WorkpadProvider>
+    </SideleafProvider>
   );
 }
 

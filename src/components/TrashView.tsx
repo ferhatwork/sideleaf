@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Item, Workspace } from '../types';
 import { Trash2, Undo2, AlertTriangle } from 'lucide-react';
 import { formatTimeAgo } from '../utils/format';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface TrashViewProps {
   items: Item[];
@@ -19,7 +19,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
   onPermanentDelete,
   onEmptyTrash,
 }) => {
-  const { t, locale } = useWorkpad();
+  const { t, locale } = useSideleaf();
   const [showConfirmEmpty, setShowConfirmEmpty] = useState(false);
   const wsMap = useMemo(() => new Map(workspaces.map((w) => [w.id, w])), [workspaces]);
 
@@ -109,7 +109,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
             return (
               <div
                 key={item.id}
-                className="p-3.5 rounded-lg border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface flex items-center justify-between gap-4 text-xs"
+                className="p-3.5 rounded-lg border border-neutral-200 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface flex items-center justify-between gap-4 text-xs"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-neutral-700 dark:text-neutral-300 truncate">

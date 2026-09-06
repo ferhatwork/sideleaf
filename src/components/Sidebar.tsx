@@ -11,7 +11,7 @@ import {
   MoreHorizontal,
   Edit2,
 } from 'lucide-react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface SidebarProps {
   activeView: ActiveView;
@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
-  const { t } = useWorkpad();
+  const { t } = useSideleaf();
   const [activeMenuWsId, setActiveMenuWsId] = useState<string | null>(null);
 
   const handleNav = (view: ActiveView) => {
@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-40 w-60 flex-shrink-0 bg-neutral-50/70 dark:bg-workpad-dark-surface border-r border-neutral-200/80 dark:border-workpad-dark-border flex flex-col justify-between transition-transform duration-200 ease-in-out ${
+        className={`fixed md:static inset-y-0 left-0 z-40 w-60 flex-shrink-0 bg-neutral-50/70 dark:bg-sideleaf-dark-surface border-r border-neutral-200/80 dark:border-sideleaf-dark-border flex flex-col justify-between transition-transform duration-200 ease-in-out ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -72,12 +72,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           {/* Logo / Brand */}
           <div className="px-3 py-2 flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold text-xs tracking-wider">
-              W
+            <div className="w-6 h-6 rounded-md bg-blue-600/15 dark:bg-blue-500/20 border border-blue-500/30 flex items-center justify-center p-0.5 text-blue-600 dark:text-blue-400">
+              <svg viewBox="0 0 32 32" fill="none" className="w-4 h-4">
+                <path d="M9 23C9 14.5 15 8.5 23 9C23.5 17 17.5 23 9 23Z" fill="#3B82F6" fillOpacity="0.35" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
+                <path d="M9 23C13.5 18.5 18 14 23 9" stroke="#60A5FA" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
             </div>
             <div>
               <span className="font-semibold text-sm tracking-tight text-neutral-900 dark:text-neutral-100">
-                Workpad
+                Sideleaf
               </span>
               <span className="text-[10px] text-neutral-400 block font-mono -mt-0.5">
                 {t.common.localOnly}
@@ -201,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                       {isMenuOpen && (
                         <div
-                          className="absolute right-2 top-8 z-50 w-36 py-1 rounded-md bg-white dark:bg-workpad-dark-elevated shadow-lg border border-neutral-200 dark:border-neutral-700 text-xs"
+                          className="absolute right-2 top-8 z-50 w-36 py-1 rounded-md bg-white dark:bg-sideleaf-dark-elevated shadow-lg border border-neutral-200 dark:border-neutral-700 text-xs"
                           onMouseLeave={() => setActiveMenuWsId(null)}
                         >
                           <button
@@ -270,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Bottom Bar: Settings */}
-        <div className="p-3 border-t border-neutral-200/80 dark:border-workpad-dark-border">
+        <div className="p-3 border-t border-neutral-200/80 dark:border-sideleaf-dark-border">
           <button
             onClick={onOpenSettings}
             className="w-full px-3 py-2 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 flex items-center gap-2.5 transition-colors focus-ring"

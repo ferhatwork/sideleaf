@@ -4,7 +4,7 @@ import { ItemCard } from './ItemCard';
 import { QuickInput } from './QuickInput';
 import { exportWorkspaceToMarkdown, downloadMarkdownFile } from '../services/exportImport';
 import { Download, Edit2, Filter, Trash2, ChevronDown } from 'lucide-react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface WorkspaceViewProps {
   workspace: Workspace;
@@ -35,7 +35,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   onEditWorkspace,
   onDeleteWorkspace,
 }) => {
-  const { t, locale } = useWorkpad();
+  const { t, locale } = useSideleaf();
   const [filterType, setFilterType] = useState<string>('all');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [visibleCount, setVisibleCount] = useState<number>(50);
@@ -82,7 +82,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
       {/* Workspace Header */}
-      <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-xs">
+      <div className="p-4 rounded-xl border border-neutral-200/80 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface shadow-xs">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <span

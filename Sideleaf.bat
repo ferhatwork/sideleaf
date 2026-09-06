@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title Workpad
+title Sideleaf
 cd /d "%~dp0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\launcher.ps1"
 if %ERRORLEVEL% neq 0 (

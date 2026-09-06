@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserSettings, Workspace, Item, ActivityLog } from '../types';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 import {
   generateExportData,
-  validateWorkpadData,
+  getExportFilename,
+  validateSideleafData,
   downloadJsonFile,
   downloadMarkdownFile,
   exportWorkspaceToMarkdown,
@@ -54,7 +55,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportData,
   onResetAllData,
 }) => {
-  const { t, locale, setLocale, canInstallPwa, installPwa } = useWorkpad();
+  const { t, locale, setLocale, canInstallPwa, installPwa } = useSideleaf();
   const [activeTab, setActiveTab] = useState<'appearance' | 'data' | 'keyboard' | 'about'>('appearance');
   const [importPreview, setImportPreview] = useState<{
     file: File;
@@ -86,14 +87,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleExportJson = () => {
     const data = generateExportData(workspaces, items, settings, activity);
-    const dateStr = new Date().toISOString().split('T')[0];
-    downloadJsonFile(`workpad-backup-${dateStr}.workpad`, data);
+    downloadJsonFile(getExportFilename(), data);
   };
 
   const handleExportMarkdown = () => {
-    const md = exportWorkspaceToMarkdown('Workpad All Notes', items);
+    const md = exportWorkspaceToMarkdown('Sideleaf All Notes', items);
     const dateStr = new Date().toISOString().split('T')[0];
-    downloadMarkdownFile(`workpad-notes-${dateStr}.md`, md);
+    downloadMarkdownFile(`sideleaf-notes-${dateStr}.md`, md);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,9 +105,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     reader.onload = (evt) => {
       try {
         const parsed = JSON.parse(evt.target?.result as string);
-        const result = validateWorkpadData(parsed);
+        const result = validateSideleafData(parsed);
         if (!result.valid || !result.data || !result.stats) {
-          setImportError(result.error || 'Failed to validate .workpad file format.');
+          setImportError(result.error || 'Failed to validate .sideleaf or .workpad file format.');
           setImportPreview(null);
           return;
         }
@@ -171,7 +171,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     >
       <div
         ref={modalRef}
-        className="w-full max-w-xl rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
+        className="w-full max-w-xl rounded-xl border border-neutral-200 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -358,10 +358,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <Download className="w-5 h-5 text-blue-500 flex-shrink-0" />
                     <div>
                       <div className="font-medium text-neutral-900 dark:text-neutral-100 text-xs">
-                        {t.settings.exportWorkpad}
+                        {t.settings.exportSideleaf}
                       </div>
                       <div className="text-[11px] text-neutral-400">
-                        {t.settings.exportWorkpadDesc}
+                        {t.settings.exportSideleafDesc}
                       </div>
                     </div>
                   </button>
@@ -392,13 +392,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".workpad,.json"
+                  accept=".sideleaf,.workpad,.json"
                   onChange={handleFileChange}
                   className="hidden"
-                  id="workpad-file-import"
+                  id="sideleaf-file-import"
                 />
                 <label
-                  htmlFor="workpad-file-import"
+                  htmlFor="sideleaf-file-import"
                   className="p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 hover:border-blue-500 flex items-center justify-center gap-2 text-xs text-neutral-600 dark:text-neutral-300 cursor-pointer transition-colors focus-ring"
                 >
                   <Upload className="w-4 h-4 text-neutral-400" />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 import { registerGlobalShortcuts } from '../services/shortcuts';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -16,7 +16,7 @@ import { WorkspaceModal } from './WorkspaceModal';
 import { ShortcutsModal } from './ShortcutsModal';
 import { Toast } from './Toast';
 import { Workspace, Item } from '../types';
-import { generateExportData, downloadJsonFile } from '../services/exportImport';
+import { generateExportData, getExportFilename, downloadJsonFile } from '../services/exportImport';
 
 export const AppShell: React.FC = () => {
   const {
@@ -59,7 +59,7 @@ export const AppShell: React.FC = () => {
 
     // Settings & Import
     updateSettings,
-    importWorkpadData,
+    importSideleafData,
     resetAllData,
 
     // Toast & Undo/Redo
@@ -67,7 +67,7 @@ export const AppShell: React.FC = () => {
     performUndo,
     performRedo,
     dismissToast,
-  } = useWorkpad();
+  } = useSideleaf();
 
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -105,8 +105,7 @@ export const AppShell: React.FC = () => {
         allowInInputs: true,
         action: () => {
           const data = generateExportData(workspaces, items, settings, activity);
-          const dateStr = new Date().toISOString().split('T')[0];
-          downloadJsonFile(`workpad-backup-${dateStr}.workpad`, data);
+          downloadJsonFile(getExportFilename(), data);
         },
       },
       // Global Undo (Spec Section 13, 29)
@@ -203,14 +202,14 @@ export const AppShell: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-workpad-light-bg dark:bg-workpad-dark-bg text-neutral-400 font-mono text-xs">
-        Loading Workpad...
+      <div className="min-h-screen flex items-center justify-center bg-sideleaf-light-bg dark:bg-sideleaf-dark-bg text-neutral-400 font-mono text-xs">
+        Loading Sideleaf...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-workpad-light-bg dark:bg-workpad-dark-bg text-workpad-light-text dark:text-workpad-dark-text">
+    <div className="min-h-screen flex flex-col bg-sideleaf-light-bg dark:bg-sideleaf-dark-bg text-sideleaf-light-text dark:text-sideleaf-dark-text">
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         <Sidebar
@@ -370,7 +369,7 @@ export const AppShell: React.FC = () => {
         workspaces={workspaces}
         items={items}
         activity={activity}
-        onImportData={importWorkpadData}
+        onImportData={importSideleafData}
         onResetAllData={resetAllData}
       />
 

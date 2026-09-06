@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Workpad Distribution Packaging Script
- * Builds production assets, creates self-contained release/workpad/,
- * and packages release/Workpad-Portable.zip
+ * Sideleaf Distribution Packaging Script
+ * Builds production assets, creates self-contained release/sideleaf/,
+ * and packages release/Sideleaf-Portable.zip
  */
 
 import fs from 'node:fs';
@@ -14,10 +14,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const releaseDir = path.join(rootDir, 'release');
-const pkgDir = path.join(releaseDir, 'workpad');
-const zipFile = path.join(releaseDir, 'Workpad-Portable.zip');
+const pkgDir = path.join(releaseDir, 'sideleaf');
+const zipFile = path.join(releaseDir, 'Sideleaf-Portable.zip');
 
-console.log('\n=== Workpad Distribution Packaging ===\n');
+console.log('\n=== Sideleaf Distribution Packaging ===\n');
 
 // 1. Build production assets
 console.log('[1/4] Building production assets (npm run build)...');
@@ -62,8 +62,8 @@ for (const file of scriptFiles) {
   }
 }
 
-// Copy root launchers
-const rootFiles = ['Workpad.bat', 'Workpad.sh', 'icon.ico'];
+// Copy root launchers and license
+const rootFiles = ['Sideleaf.bat', 'Sideleaf.sh', 'icon.ico', 'LICENSE'];
 for (const file of rootFiles) {
   const src = path.join(rootDir, file);
   if (fs.existsSync(src)) {
@@ -73,29 +73,29 @@ for (const file of rootFiles) {
 
 // Write README.txt
 const readmeContent = `======================================================================
-WORKPAD - LOCAL-FIRST WORK SURFACE
+SIDELEAF - LOCAL-FIRST WORK SURFACE
 ======================================================================
 
-Workpad is a tiny, local-first work surface for computer work.
+Sideleaf is a tiny, local-first work surface for computer work.
 All your notes and workspaces stay completely local on your machine.
 No accounts, no cloud dependencies, no tracking.
 
 ----------------------------------------------------------------------
-HOW TO RUN WORKPAD
+HOW TO RUN SIDELEAF
 ----------------------------------------------------------------------
 
 Windows:
-  1. Double-click "Workpad.bat" to start Workpad.
+  1. Double-click "Sideleaf.bat" to start Sideleaf.
   2. A browser window will open automatically.
   3. (Optional) Run "scripts\\create-desktop-shortcut.bat" to place a
-     Workpad icon on your Desktop.
+     Sideleaf icon on your Desktop.
 
 macOS & Linux:
   1. Open a terminal in this folder.
-  2. Make sure Workpad.sh is executable:
-     chmod +x Workpad.sh
+  2. Make sure Sideleaf.sh is executable:
+     chmod +x Sideleaf.sh
   3. Run:
-     ./Workpad.sh
+     ./Sideleaf.sh
   4. A browser window will open automatically.
      (Requires Node.js or Python 3 installed on your machine)
 
@@ -104,7 +104,7 @@ Cross-Platform (Node.js):
   node scripts/launcher.mjs
 
 ----------------------------------------------------------------------
-HOW TO CLOSE WORKPAD
+HOW TO CLOSE SIDELEAF
 ----------------------------------------------------------------------
 Close your browser tab when finished.
 In the launcher terminal window, press Ctrl+C to stop the local server.
@@ -114,19 +114,26 @@ DATA PRIVACY & STORAGE
 ----------------------------------------------------------------------
 Your notes are stored locally in your browser's IndexedDB database.
 To back up your data or transfer it to another machine, use the
-"Export Data" option in the Workpad Settings panel at any time.
+"Export Backup" option in the Sideleaf Settings panel at any time.
+
+----------------------------------------------------------------------
+LICENSE
+----------------------------------------------------------------------
+Sideleaf is source-available under the PolyForm Noncommercial License 1.0.0.
+Free for personal and noncommercial use. Commercial use and selling
+are strictly prohibited. See LICENSE for full terms.
 ======================================================================
 `;
 
 fs.writeFileSync(path.join(pkgDir, 'README.txt'), readmeContent, 'utf-8');
 
 // 4. Create ZIP archive
-console.log('\n[4/4] Creating Workpad-Portable.zip...');
+console.log('\n[4/4] Creating Sideleaf-Portable.zip...');
 let zipCreated = false;
 
 // Attempt 1: bsdtar (built-in on Windows 10/11 and modern Unix)
 try {
-  execSync(`tar -a -c -f "${zipFile}" -C "${releaseDir}" workpad`, { stdio: 'ignore' });
+  execSync(`tar -a -c -f "${zipFile}" -C "${releaseDir}" sideleaf`, { stdio: 'ignore' });
   if (fs.existsSync(zipFile) && fs.statSync(zipFile).size > 0) {
     zipCreated = true;
   }
@@ -146,7 +153,7 @@ if (!zipCreated && process.platform === 'win32') {
 // Attempt 3: Unix zip command
 if (!zipCreated) {
   try {
-    execSync(`zip -r "${zipFile}" workpad`, { cwd: releaseDir, stdio: 'ignore' });
+    execSync(`zip -r "${zipFile}" sideleaf`, { cwd: releaseDir, stdio: 'ignore' });
     if (fs.existsSync(zipFile) && fs.statSync(zipFile).size > 0) {
       zipCreated = true;
     }

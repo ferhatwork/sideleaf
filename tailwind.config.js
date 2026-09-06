@@ -8,7 +8,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        workpad: {
+        sideleaf: {
           dark: {
             bg: '#0f1117',
             surface: '#161922',

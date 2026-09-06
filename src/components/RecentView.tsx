@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityLog, Item, Workspace } from '../types';
 import { formatTimeAgo, formatDateTime } from '../utils/format';
 import { Clock, CheckCircle2, FileEdit, FolderInput, Archive, Trash2, PlusCircle } from 'lucide-react';
-import { useWorkpad } from '../hooks/useWorkpad';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface RecentViewProps {
   activity: ActivityLog[];
@@ -17,7 +17,7 @@ export const RecentView: React.FC<RecentViewProps> = ({
   workspaces,
   onSelectItem,
 }) => {
-  const { t, locale } = useWorkpad();
+  const { t, locale } = useSideleaf();
 
   const getActionIcon = (action: string) => {
     switch (action) {
@@ -74,13 +74,13 @@ export const RecentView: React.FC<RecentViewProps> = ({
                 className="relative flex items-start gap-3 group"
               >
                 {/* Timeline node */}
-                <div className="absolute -left-6 mt-1 p-1 rounded-full bg-white dark:bg-workpad-dark-surface border border-neutral-200 dark:border-neutral-700 shadow-2xs">
+                <div className="absolute -left-6 mt-1 p-1 rounded-full bg-white dark:bg-sideleaf-dark-surface border border-neutral-200 dark:border-neutral-700 shadow-2xs">
                   {getActionIcon(act.action)}
                 </div>
 
                 <div
                   onClick={() => linkedItem && onSelectItem(linkedItem)}
-                  className={`flex-1 p-3 rounded-lg border border-neutral-200/70 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface text-xs transition-colors ${
+                  className={`flex-1 p-3 rounded-lg border border-neutral-200/70 dark:border-sideleaf-dark-border bg-white dark:bg-sideleaf-dark-surface text-xs transition-colors ${
                     linkedItem ? 'cursor-pointer hover:border-neutral-300 dark:hover:border-neutral-700' : ''
                   }`}
                 >
