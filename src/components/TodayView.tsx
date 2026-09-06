@@ -2,7 +2,8 @@ import React, { useMemo, useRef } from 'react';
 import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput, QuickInputHandle } from './QuickInput';
-import { formatTimeAgo } from '../utils/format';
+import { formatTimeAgo, formatLocalizedDate } from '../utils/format';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 interface TodayViewProps {
   items: Item[];
@@ -31,16 +32,19 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onDelete,
   onNavigateToWorkspace,
 }) => {
+  const { t, locale, currentWorkspaceId } = useWorkpad();
   const quickInputRef = useRef<QuickInputHandle>(null);
   const startOfToday = new Date().setHours(0, 0, 0, 0);
 
   const todayFormatted = useMemo(() => {
-    return new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-    }).format(new Date());
-  }, []);
+    return formatLocalizedDate(new Date(), locale);
+  }, [locale]);
+
+  // Current active workspace context (Spec Sections 20 & 28)
+  const currentWorkspace = useMemo(() => {
+    if (!currentWorkspaceId) return null;
+    return workspaces.find((w) => w.id === currentWorkspaceId) || null;
+  }, [currentWorkspaceId, workspaces]);
 
   // Active items
   const activeItems = useMemo(
@@ -77,13 +81,36 @@ export const TodayView: React.FC<TodayViewProps> = ({
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6">
       {/* Page Title & Date Header */}
-      <div className="space-y-1 mb-6">
+      <div className="space-y-1 mb-5">
         <h1 className="text-2xl font-serif font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-          Today
+          {t.today.title}
         </h1>
         <p className="text-xs text-neutral-400 dark:text-neutral-500 font-mono">
           {todayFormatted}
         </p>
+
+        {/* Working on context indicator on the main work surface (Section 20 & 28) */}
+        {currentWorkspace && (
+          <div className="pt-2 flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 text-xs">
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: currentWorkspace.color || '#3b82f6' }}
+                aria-hidden="true"
+              />
+              <span className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                {t.common.workingOn}:
+              </span>
+              <button
+                type="button"
+                onClick={() => onNavigateToWorkspace(currentWorkspace.id)}
+                className="font-medium text-neutral-800 dark:text-neutral-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus-ring rounded"
+              >
+                {currentWorkspace.name}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick Input Surface */}
@@ -91,7 +118,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
         <QuickInput
           ref={quickInputRef}
           onAdd={onAdd}
-          placeholder="Capture something..."
+          placeholder={t.capture.idlePlaceholder}
         />
       </div>
 
@@ -103,13 +130,13 @@ export const TodayView: React.FC<TodayViewProps> = ({
         <div className="py-16 text-center max-w-sm mx-auto space-y-5">
           <div className="space-y-2">
             <h2 className="text-xl font-serif font-medium tracking-tight text-neutral-900 dark:text-neutral-100">
-              Workpad
+              {t.today.emptyHeading}
             </h2>
             <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-              A quiet place for thoughts while you work.
+              {t.today.emptySubheading}
             </p>
             <p className="text-xs text-neutral-400 dark:text-neutral-500">
-              No account. No setup.
+              {t.today.emptyNoSetup}
             </p>
           </div>
           <div>
@@ -117,7 +144,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
               onClick={() => quickInputRef.current?.focus()}
               className="px-4 py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 text-xs font-medium transition-colors shadow-xs focus-ring"
             >
-              Start writing
+              {t.today.startWriting}
             </button>
           </div>
         </div>
@@ -129,6 +156,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 key={item.id}
                 item={item}
                 workspaces={workspaces}
+                locale={locale}
                 onUpdate={onUpdate}
                 onToggleCheck={onToggleCheck}
                 onConvertType={onConvertType}
@@ -146,7 +174,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
 
               <div className="space-y-2 pt-1">
                 <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                  Continue
+                  {t.today.continueSection}
                 </h2>
                 <div className="space-y-0.5">
                   {resumeWorkspaces.map(({ ws, lastUpdated }) => (
@@ -165,7 +193,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
                         </span>
                       </div>
                       <span className="text-xs text-neutral-400 dark:text-neutral-500 font-mono flex-shrink-0">
-                        Last active {formatTimeAgo(lastUpdated)}
+                        {t.today.lastActive} {formatTimeAgo(lastUpdated, locale)}
                       </span>
                     </button>
                   ))}

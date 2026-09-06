@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Edit2,
 } from 'lucide-react';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 interface SidebarProps {
   activeView: ActiveView;
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
+  const { t } = useWorkpad();
   const [activeMenuWsId, setActiveMenuWsId] = useState<string | null>(null);
 
   const handleNav = (view: ActiveView) => {
@@ -78,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 Workpad
               </span>
               <span className="text-[10px] text-neutral-400 block font-mono -mt-0.5">
-                local-first surface
+                {t.common.localOnly}
               </span>
             </div>
           </div>
@@ -95,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Calendar className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
-                <span>Today</span>
+                <span>{t.navigation.today}</span>
               </div>
             </button>
 
@@ -109,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <FileEdit className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
-                <span>Scratch</span>
+                <span>{t.navigation.scratch}</span>
               </div>
             </button>
 
@@ -123,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Clock className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
-                <span>Recent</span>
+                <span>{t.navigation.recent}</span>
               </div>
             </button>
           </div>
@@ -132,13 +134,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="pt-1">
             <div className="px-3 py-1.5 flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-                Workspaces
+                {t.navigation.workspaces}
               </span>
               <button
                 onClick={onOpenNewWorkspace}
                 className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors focus-ring"
-                title="Create Workspace"
-                aria-label="Create new workspace"
+                title={t.workspace.editWorkspace}
+                aria-label={t.workspace.editWorkspace}
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -147,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="space-y-0.5 mt-1">
               {workspaces.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] text-neutral-400 italic">
-                  Create a workspace when a project deserves one.
+                  {t.workspace.emptySubheading}
                 </div>
               ) : (
                 workspaces.map((ws) => {
@@ -209,7 +211,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             }}
                             className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 text-neutral-700 dark:text-neutral-200"
                           >
-                            <Edit2 className="w-3 h-3" /> Edit
+                            <Edit2 className="w-3 h-3" /> {t.common.edit}
                           </button>
                           <button
                             onClick={() => {
@@ -218,7 +220,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             }}
                             className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 text-red-600 dark:text-red-400"
                           >
-                            <Trash2 className="w-3 h-3" /> Delete
+                            <Trash2 className="w-3 h-3" /> {t.common.delete}
                           </button>
                         </div>
                       )}
@@ -241,7 +243,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Archive className="w-3.5 h-3.5 text-neutral-400" />
-                <span>Archive</span>
+                <span>{t.navigation.archive}</span>
               </div>
               {archiveCount > 0 && (
                 <span className="text-[11px] font-mono text-neutral-400">{archiveCount}</span>
@@ -258,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2.5">
                 <Trash2 className="w-3.5 h-3.5 text-neutral-400" />
-                <span>Trash</span>
+                <span>{t.navigation.trash}</span>
               </div>
               {trashCount > 0 && (
                 <span className="text-[11px] font-mono text-neutral-400">{trashCount}</span>
@@ -274,7 +276,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full px-3 py-2 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 flex items-center gap-2.5 transition-colors focus-ring"
           >
             <Settings className="w-4 h-4 text-neutral-400" />
-            <span>Settings & Data</span>
+            <span>{t.navigation.settingsAndData}</span>
           </button>
         </div>
       </aside>

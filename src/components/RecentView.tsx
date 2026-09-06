@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityLog, Item, Workspace } from '../types';
 import { formatTimeAgo, formatDateTime } from '../utils/format';
 import { Clock, CheckCircle2, FileEdit, FolderInput, Archive, Trash2, PlusCircle } from 'lucide-react';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 interface RecentViewProps {
   activity: ActivityLog[];
@@ -16,6 +17,8 @@ export const RecentView: React.FC<RecentViewProps> = ({
   workspaces,
   onSelectItem,
 }) => {
+  const { t, locale } = useWorkpad();
+
   const getActionIcon = (action: string) => {
     switch (action) {
       case 'capture':
@@ -43,20 +46,20 @@ export const RecentView: React.FC<RecentViewProps> = ({
       <div>
         <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
           <Clock className="w-4 h-4 text-purple-500" />
-          Recent Activity Timeline
+          {t.recent.title}
         </h2>
         <p className="text-xs text-neutral-400 mt-0.5">
-          "What was I doing?" — External working memory stream of recent captures and edits.
+          {t.recent.subtitle}
         </p>
       </div>
 
       {activity.length === 0 ? (
         <div className="py-16 text-center space-y-3 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/20">
           <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
-            No recent activity recorded yet.
+            {t.recent.emptyHeading}
           </p>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-            As you capture thoughts and manage notes, your history appears here privately.
+            {t.recent.emptySubheading}
           </p>
         </div>
       ) : (
@@ -101,7 +104,7 @@ export const RecentView: React.FC<RecentViewProps> = ({
                         className="text-[11px] text-neutral-400 font-mono flex-shrink-0"
                         title={formatDateTime(act.timestamp)}
                       >
-                        {formatTimeAgo(act.timestamp)}
+                        {formatTimeAgo(act.timestamp, locale)}
                       </span>
                     </div>
                   </div>

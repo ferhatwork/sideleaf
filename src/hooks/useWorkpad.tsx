@@ -3,6 +3,7 @@ import {
   Item,
   Workspace,
   UserSettings,
+  Locale,
   ActivityLog,
   ActiveView,
   ItemType,
@@ -11,6 +12,7 @@ import {
   ApplicationCommands,
   ActivityAction,
 } from '../types';
+import { detectSystemLocale, getTranslation, TranslationSchema } from '../i18n';
 import { db } from '../services/db';
 import { generateId } from '../utils/id';
 import { createItemRecord, updateWorkSession } from '../utils/domain';
@@ -88,6 +90,11 @@ interface WorkpadContextType extends ApplicationCommands {
   ) => Promise<void>;
   resetAllData: () => Promise<void>;
 
+  // i18n & Localization
+  locale: Locale;
+  setLocale: (locale: Locale) => Promise<void>;
+  t: TranslationSchema;
+
   // Toasts & Undo
   toast: ToastMessage | null;
   triggerToast: (text: string, undoAction?: UndoAction) => void;
@@ -98,6 +105,7 @@ interface WorkpadContextType extends ApplicationCommands {
 
 const defaultSettings: ExtendedUserSettings = {
   theme: 'dark',
+  locale: detectSystemLocale(),
   quickCaptureShortcut: 'Ctrl+Space',
   searchShortcut: 'Ctrl+K',
   autoSaveIntervalMs: 200,
@@ -216,9 +224,19 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
         if (!isMounted) return;
 
-        const currentSettings = loadedSettings || defaultSettings;
+        const detectedLocale = detectSystemLocale();
+        const currentSettings: ExtendedUserSettings = loadedSettings
+          ? {
+              ...defaultSettings,
+              ...loadedSettings,
+              locale: loadedSettings.locale || detectedLocale,
+            }
+          : { ...defaultSettings, locale: detectedLocale };
         setSettings(currentSettings);
         applyTheme(currentSettings.theme);
+        if (typeof document !== 'undefined') {
+          document.documentElement.lang = currentSettings.locale;
+        }
 
         // Only seed realistic starter data on very first run (no fake tutorial/marketing cards!)
         if (!currentSettings.hasInitialized && loadedItems.length === 0) {
@@ -662,6 +680,9 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       if (updates.theme) {
         applyTheme(updates.theme);
       }
+      if (updates.locale && typeof document !== 'undefined') {
+        document.documentElement.lang = updates.locale;
+      }
       await db.saveSettings(updated);
     },
     [settings]
@@ -758,6 +779,16 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
     triggerToast('All data cleared. Empty workspace ready.');
   }, [settings, triggerToast]);
 
+  const currentLocale: Locale = settings.locale || detectSystemLocale();
+  const t: TranslationSchema = useMemo(() => getTranslation(currentLocale), [currentLocale]);
+
+  const setLocale = useCallback(
+    async (newLocale: Locale) => {
+      await updateSettings({ locale: newLocale });
+    },
+    [updateSettings]
+  );
+
   const value = useMemo(
     () => ({
       items,
@@ -771,6 +802,9 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       setCurrentWorkspace,
       setCurrentWorkspaceId: setCurrentWorkspace,
       currentSession,
+      locale: currentLocale,
+      setLocale,
+      t,
       isQuickCaptureOpen,
       setIsQuickCaptureOpen,
       isSearchOpen,
@@ -816,6 +850,9 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       currentWorkspaceId,
       setCurrentWorkspace,
       currentSession,
+      currentLocale,
+      setLocale,
+      t,
       isQuickCaptureOpen,
       isSearchOpen,
       isSettingsOpen,

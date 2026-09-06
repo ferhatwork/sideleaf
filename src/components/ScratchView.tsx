@@ -3,6 +3,7 @@ import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput } from './QuickInput';
 import { FileEdit, Filter, ChevronDown } from 'lucide-react';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 interface ScratchViewProps {
   items: Item[];
@@ -27,6 +28,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
   onArchive,
   onDelete,
 }) => {
+  const { t, locale } = useWorkpad();
   const [filterType, setFilterType] = useState<string>('all');
   const [visibleCount, setVisibleCount] = useState<number>(50);
 
@@ -45,6 +47,25 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
     [scratchItems, visibleCount]
   );
 
+  const getFilterLabel = (filterKey: string) => {
+    switch (filterKey) {
+      case 'all':
+        return t.types.all;
+      case 'text':
+        return t.types.text;
+      case 'checklist':
+        return t.types.tasks;
+      case 'quote':
+        return t.types.quote;
+      case 'link':
+        return t.types.link;
+      case 'decision':
+        return t.types.decision;
+      default:
+        return filterKey;
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
       {/* Header description */}
@@ -52,30 +73,30 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
         <div>
           <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
             <FileEdit className="w-4 h-4 text-amber-500" />
-            Scratch Surface
+            {t.scratch.title}
           </h2>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Quick captures and unorganized thoughts. Organize when ready or keep here.
+            {t.scratch.subtitle}
           </p>
         </div>
 
         {/* Filter */}
         <div className="flex items-center gap-1 text-xs">
           <Filter className="w-3.5 h-3.5 text-neutral-400 mr-1" />
-          {['all', 'text', 'checklist', 'quote', 'link', 'decision'].map((t) => (
+          {['all', 'text', 'checklist', 'quote', 'link', 'decision'].map((tKey) => (
             <button
-              key={t}
+              key={tKey}
               onClick={() => {
-                setFilterType(t);
+                setFilterType(tKey);
                 setVisibleCount(50);
               }}
               className={`px-2 py-0.5 rounded capitalize transition-colors focus-ring ${
-                filterType === t
+                filterType === tKey
                   ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
                   : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
               }`}
             >
-              {t === 'checklist' ? 'Tasks' : t}
+              {getFilterLabel(tKey)}
             </button>
           ))}
         </div>
@@ -85,17 +106,17 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
       <QuickInput
         onAdd={onAdd}
         defaultWorkspaceId={null}
-        placeholder="Capture to scratch... (Enter to save, Ctrl+Enter for task)"
+        placeholder={t.scratch.capturePlaceholder}
       />
 
       {/* Items list */}
       {scratchItems.length === 0 ? (
         <div className="py-16 text-center space-y-3 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/20">
           <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
-            Scratch is empty.
+            {t.scratch.emptyHeading}
           </p>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-            Capture anything. It does not need a home yet.
+            {t.scratch.emptySubheading}
           </p>
         </div>
       ) : (
@@ -105,6 +126,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
               key={item.id}
               item={item}
               workspaces={workspaces}
+              locale={locale}
               onUpdate={onUpdate}
               onToggleCheck={onToggleCheck}
               onConvertType={onConvertType}
@@ -122,7 +144,11 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
                 onClick={() => setVisibleCount((prev) => prev + 50)}
                 className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 text-xs text-neutral-600 dark:text-neutral-400 inline-flex items-center gap-1.5 focus-ring"
               >
-                <span>Show more ({scratchItems.length - visibleCount} remaining)</span>
+                <span>
+                  {locale === 'tr'
+                    ? `Daha fazla göster (${scratchItems.length - visibleCount} kaldı)`
+                    : `Show more (${scratchItems.length - visibleCount} remaining)`}
+                </span>
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
             </div>

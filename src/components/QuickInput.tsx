@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } f
 import { ItemType } from '../types';
 import { ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 export interface QuickInputHandle {
   focus: () => void;
@@ -22,9 +23,12 @@ interface QuickInputProps {
 export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   onAdd,
   defaultWorkspaceId = null,
-  placeholder = "What's on your mind?",
+  placeholder,
   autoFocus = false,
 }, ref) => {
+  const { t } = useWorkpad();
+  const effectivePlaceholder = placeholder || t.capture.focusedPlaceholder;
+
   const [content, setContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
   const [isFocused, setIsFocused] = useState(autoFocus);
@@ -124,7 +128,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
             handleIdleClick();
           }
         }}
-        aria-label="Capture something (Press Enter to start writing)"
+        aria-label={`${t.capture.idlePlaceholder} (${t.capture.saveHint})`}
         className="group w-full py-2 px-3.5 rounded-lg border border-neutral-200/70 dark:border-workpad-dark-border/70 bg-white/60 dark:bg-workpad-dark-surface/40 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all cursor-text flex items-center justify-between text-neutral-400 dark:text-neutral-500 focus-ring"
       >
         <div className="flex items-center gap-2">
@@ -132,7 +136,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
             +
           </span>
           <span className="text-sm font-normal text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors">
-            Capture something...
+            {t.capture.idlePlaceholder}
           </span>
         </div>
         <kbd className="text-[11px] font-mono text-neutral-400 dark:text-neutral-500 px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/60">
@@ -159,9 +163,9 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
             setIsFocused(false);
           }
         }}
-        placeholder={placeholder}
+        placeholder={effectivePlaceholder}
         rows={2}
-        aria-label="What's on your mind?"
+        aria-label={t.capture.focusedPlaceholder}
         className="w-full bg-transparent resize-none text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
       />
 
@@ -169,11 +173,11 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
         <div className="flex items-center gap-2">
           {type !== 'text' && (
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 capitalize">
-              {type}
+              {t.types[type] || type}
             </span>
           )}
           <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-mono">
-            Enter to save · Ctrl+Enter for task
+            {t.capture.saveHint} · {t.capture.taskHint}
           </span>
         </div>
 
@@ -184,7 +188,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
               onClick={() => setIsFocused(false)}
               className="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 px-2 py-1 rounded focus-ring"
             >
-              Cancel
+              {t.common.cancel}
             </button>
           )}
           <button
@@ -192,8 +196,8 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
             onClick={() => handleSubmit()}
             disabled={!content.trim() || isSubmitting}
             className="p-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-ring flex items-center gap-1 text-xs font-medium"
-            title="Save capture (Enter)"
-            aria-label="Save capture"
+            title={`${t.common.save} (${t.capture.saveHint})`}
+            aria-label={t.common.save}
           >
             <ArrowRight className="w-3.5 h-3.5" />
           </button>

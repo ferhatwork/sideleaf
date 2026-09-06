@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { X, Command } from 'lucide-react';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 interface ShortcutsModalProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface ShortcutsModalProps {
 }
 
 export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
+  const { t, locale } = useWorkpad();
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -24,17 +26,15 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
   const modKey = isMac ? '⌘' : 'Ctrl';
 
   const shortcuts = [
-    { key: `${modKey} + Space`, description: 'Open Quick Capture from anywhere' },
-    { key: `${modKey} + Shift + Space`, description: 'Quick Capture alternate fallback' },
-    { key: `${modKey} + K`, description: 'Open Search / Command Palette' },
-    { key: `${modKey} + Enter`, description: 'Convert item to task / Toggle task' },
-    { key: `${modKey} + Z`, description: 'Undo last action (delete, archive, convert)' },
-    { key: `${modKey} + Shift + Z`, description: 'Redo previously undone action' },
-    { key: `${modKey} + S`, description: 'Export full .workpad backup snapshot' },
-    { key: 'Esc', description: 'Close any active overlay / modal' },
-    { key: 'Enter', description: 'Save capture in quick input / quick capture' },
-    { key: 'Shift + Enter', description: 'Insert new line in capture input' },
-    { key: '?', description: 'Show keyboard shortcuts guide' },
+    { key: `${modKey} + Space`, description: t.shortcuts.quickCapture },
+    { key: `${modKey} + Shift + Space`, description: t.shortcuts.quickCaptureAlt },
+    { key: `${modKey} + K`, description: t.shortcuts.search },
+    { key: `${modKey} + Enter`, description: t.shortcuts.convertTask },
+    { key: `${modKey} + Z`, description: t.shortcuts.undo },
+    { key: `${modKey} + Shift + Z`, description: t.shortcuts.redo },
+    { key: `${modKey} + S`, description: t.shortcuts.saveBackup },
+    { key: 'Esc', description: t.shortcuts.closeDialog },
+    { key: '?', description: t.shortcuts.showHelp },
   ];
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -76,12 +76,12 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
           <div className="flex items-center gap-2">
             <Command className="w-4 h-4 text-blue-500" />
             <h2 id="shortcuts-modal-title" className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              Keyboard Shortcuts
+              {t.settings.keyboardTitle}
             </h2>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close shortcuts modal"
+            aria-label={t.common.close}
             className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
           >
             <X className="w-4 h-4" />
@@ -100,7 +100,9 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         </div>
 
         <div className="px-5 py-3 bg-neutral-50 dark:bg-neutral-900/40 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400 text-center">
-          Keyboard-first design: capture thoughts without reaching for a mouse.
+          {locale === 'tr'
+            ? 'Önce klavye: fareye uzanmadan düşüncelerinizi anında yakalayın.'
+            : 'Keyboard-first design: capture thoughts without reaching for a mouse.'}
         </div>
       </div>
     </div>

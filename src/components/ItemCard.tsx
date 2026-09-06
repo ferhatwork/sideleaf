@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Item, ItemType, Workspace } from '../types';
+import { Item, ItemType, Workspace, Locale } from '../types';
 import { formatTimeAgo, extractDomain } from '../utils/format';
+import { useWorkpad } from '../hooks/useWorkpad';
 import {
   CheckSquare,
   Square,
@@ -19,6 +20,7 @@ import {
 interface ItemCardProps {
   item: Item;
   workspaces: Workspace[];
+  locale?: Locale;
   onUpdate: (id: string, updates: Partial<Item>) => Promise<void>;
   onToggleCheck: (id: string) => Promise<void>;
   onConvertType: (id: string, targetType: ItemType) => Promise<void>;
@@ -32,6 +34,7 @@ interface ItemCardProps {
 export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   workspaces,
+  locale,
   onUpdate,
   onToggleCheck,
   onConvertType,
@@ -41,6 +44,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   onDelete,
   showWorkspaceBadge = true,
 }) => {
+  const { t, locale: ctxLocale } = useWorkpad();
+  const activeLocale = locale || ctxLocale || 'en';
+
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(item.content);
   const [showMenu, setShowMenu] = useState(false);
@@ -138,8 +144,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         <button
           onClick={() => onDelete(item.id)}
           className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 text-neutral-400 hover:text-red-500 px-2 text-xs rounded focus-ring transition-opacity"
-          aria-label="Remove divider"
-          title="Remove divider"
+          aria-label={t.item.deleteAction}
+          title={t.item.deleteAction}
         >
           ✕
         </button>
@@ -149,7 +155,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   // Render text with hashtags highlighted
   const renderFormattedText = (text: string) => {
-    if (!text) return <span className="text-neutral-400 italic">Empty note...</span>;
+    if (!text) return <span className="text-neutral-400 italic">{t.common.empty}...</span>;
 
     const parts = text.split(/(#[a-zA-Z0-9_-]+)/g);
     return parts.map((part, index) => {
@@ -169,19 +175,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   return (
     <div
-      className={`group relative py-2.5 px-3 -mx-3 rounded-md transition-colors ${
+      className={`group relative rounded-lg px-3 py-2 -mx-3 transition-colors ${
         isEditing
-          ? 'bg-neutral-50/90 dark:bg-workpad-dark-surface ring-1 ring-neutral-300 dark:ring-neutral-700'
-          : 'hover:bg-neutral-100/50 dark:hover:bg-neutral-800/30'
+          ? 'bg-neutral-100/70 dark:bg-workpad-dark-elevated shadow-xs ring-1 ring-neutral-300 dark:ring-neutral-700'
+          : 'hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40'
       }`}
     >
       <div className="flex items-start gap-2.5">
-        {/* Checklist checkbox */}
+        {/* Checkbox for tasks */}
         {item.type === 'checklist' && (
           <button
             onClick={() => onToggleCheck(item.id)}
-            className="mt-0.5 text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300 focus-ring rounded flex-shrink-0"
-            aria-label={item.checked ? 'Mark as incomplete' : 'Mark as completed'}
+            className="mt-0.5 text-neutral-400 hover:text-blue-500 transition-colors focus-ring rounded"
+            aria-label={item.checked ? t.item.markIncomplete : t.item.markComplete}
           >
             {item.checked ? (
               <CheckSquare className="w-4 h-4 text-blue-500" />
@@ -191,7 +197,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </button>
         )}
 
-        {/* Content body */}
+        {/* Content area: inline edit or formatted view */}
         <div className="flex-1 min-w-0">
           {isEditing ? (
             <textarea
@@ -211,7 +217,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             <div
               tabIndex={0}
               role="button"
-              aria-label={item.content ? `Edit note: ${item.content.slice(0, 50)}` : 'Edit note'}
+              aria-label={item.content ? `${t.item.editNote}: ${item.content.slice(0, 50)}` : t.item.editNote}
               onClick={() => setIsEditing(true)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -229,7 +235,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             >
               {item.type === 'decision' && (
                 <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-800/50 mr-2 align-middle">
-                  Decision
+                  {t.item.decisionBadge}
                 </span>
               )}
               {renderFormattedText(item.content)}
@@ -240,7 +246,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           {item.source?.url && isSafeUrl(item.source.url) && (
             <div className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-neutral-100/80 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-mono text-[11px]">
-                {item.source.domain || extractDomain(item.source.url) || 'source'}
+                {item.source.domain || extractDomain(item.source.url) || t.item.sourceLabel}
               </span>
               <a
                 href={item.source.url}
@@ -248,8 +254,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 rel="noopener noreferrer"
                 className="hover:text-blue-500 inline-flex items-center gap-0.5 transition-colors focus-ring rounded"
                 title={item.source.url}
+                aria-label={t.item.openSource}
               >
-                <span>Open</span>
+                <span>{t.item.openSource}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
               {item.source.title && (
@@ -263,12 +270,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           {/* Low-contrast metadata: e.g. 8 min ago · Website Redesign */}
           <div className="mt-1 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500">
             <div className="flex items-center gap-1.5">
-              <span>{formatTimeAgo(item.updatedAt)}</span>
+              <span>{formatTimeAgo(item.updatedAt, activeLocale)}</span>
               {showWorkspaceBadge && (
                 <>
                   <span>·</span>
                   <span className="text-neutral-500 dark:text-neutral-400 font-medium">
-                    {currentWorkspace ? currentWorkspace.name : 'Scratch'}
+                    {currentWorkspace ? currentWorkspace.name : t.item.scratchOption}
                   </span>
                 </>
               )}
@@ -305,7 +312,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2"
                       >
                         <CheckSquare className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Convert to task</span>
+                        <span>{t.item.convertToTask}</span>
                       </button>
                     ) : (
                       <button
@@ -316,7 +323,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2"
                       >
                         <Type className="w-3.5 h-3.5" />
-                        <span>Convert to note</span>
+                        <span>{t.item.convertToNote}</span>
                       </button>
                     )}
 
@@ -328,12 +335,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       {copied ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-emerald-500" />
-                          <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">{t.common.copied}</span>
                         </>
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5" />
-                          <span>Copy text</span>
+                          <span>{t.item.copyText}</span>
                         </>
                       )}
                     </button>
@@ -346,7 +353,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       >
                         <span className="flex items-center gap-2">
                           <FolderInput className="w-3.5 h-3.5" />
-                          <span>Move to workspace</span>
+                          <span>{t.item.moveToWorkspace}</span>
                         </span>
                         <span className="text-[10px] text-neutral-400">›</span>
                       </button>
@@ -360,7 +367,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                             }}
                             className="w-full text-left px-2 py-1 text-xs hover:bg-neutral-200/50 dark:hover:bg-neutral-800 rounded"
                           >
-                            Scratch
+                            {t.item.scratchOption}
                           </button>
                           {workspaces.map((w) => (
                             <button
@@ -394,7 +401,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 text-neutral-500"
                       >
                         <Quote className="w-3.5 h-3.5" />
-                        <span>Convert to quote</span>
+                        <span>{t.item.convertToQuote}</span>
                       </button>
                     )}
 
@@ -407,7 +414,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 text-neutral-500"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                        <span>Convert to decision</span>
+                        <span>{t.item.convertToDecision}</span>
                       </button>
                     )}
 
@@ -423,7 +430,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 text-blue-600 dark:text-blue-400"
                       >
                         <Archive className="w-3.5 h-3.5" />
-                        <span>Restore from Archive</span>
+                        <span>{t.item.restoreAction}</span>
                       </button>
                     ) : (
                       <button
@@ -432,10 +439,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                           setShowMenu(false);
                         }}
                         className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 text-neutral-600 dark:text-neutral-300"
-                        title="Archive item"
+                        title={t.item.archiveAction}
                       >
                         <Archive className="w-3.5 h-3.5" />
-                        <span>Archive</span>
+                        <span>{t.item.archiveAction}</span>
                       </button>
                     )}
 
@@ -448,7 +455,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 text-red-600 dark:text-red-400"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
+                      <span>{t.item.deleteAction}</span>
                     </button>
                   </div>
                 )}

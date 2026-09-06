@@ -79,8 +79,11 @@ export interface Workspace {
   isArchived?: boolean;
 }
 
+export type Locale = 'en' | 'tr';
+
 export interface UserSettings {
   theme: 'light' | 'dark' | 'system';
+  locale: Locale;
   quickCaptureShortcut: string;
   searchShortcut: string;
   autoSaveIntervalMs: number;

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserSettings, Workspace, Item, ActivityLog } from '../types';
+import { useWorkpad } from '../hooks/useWorkpad';
 import {
   generateExportData,
   validateWorkpadData,
@@ -22,6 +23,7 @@ import {
   CheckCircle,
   Keyboard,
   Info,
+  Languages,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -52,6 +54,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportData,
   onResetAllData,
 }) => {
+  const { t, locale, setLocale } = useWorkpad();
   const [activeTab, setActiveTab] = useState<'appearance' | 'data' | 'keyboard' | 'about'>('appearance');
   const [importPreview, setImportPreview] = useState<{
     file: File;
@@ -177,11 +180,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             id="settings-dialog-title"
             className="text-base font-semibold text-neutral-900 dark:text-neutral-100"
           >
-            Settings
+            {t.settings.title}
           </h2>
           <button
             onClick={onClose}
-            aria-label="Close settings modal"
+            aria-label={t.common.close}
             className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
           >
             <X className="w-4 h-4" />
@@ -200,7 +203,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <Sun className="w-3.5 h-3.5" />
-            <span>Appearance</span>
+            <span>{t.settings.appearanceTab}</span>
           </button>
           <button
             type="button"
@@ -212,7 +215,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <HardDrive className="w-3.5 h-3.5" />
-            <span>Data</span>
+            <span>{t.settings.dataTab}</span>
           </button>
           <button
             type="button"
@@ -224,7 +227,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <Keyboard className="w-3.5 h-3.5" />
-            <span>Keyboard</span>
+            <span>{t.settings.keyboardTab}</span>
           </button>
           <button
             type="button"
@@ -236,7 +239,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <Info className="w-3.5 h-3.5" />
-            <span>About</span>
+            <span>{t.settings.aboutTab}</span>
           </button>
         </div>
 
@@ -247,7 +250,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-6">
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">
-                  Theme & Surface
+                  {t.settings.themeTitle}
                 </h3>
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -260,7 +263,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }`}
                   >
                     <Moon className="w-5 h-5" />
-                    <span className="text-xs font-medium">Dark Mode</span>
+                    <span className="text-xs font-medium">{t.settings.darkMode}</span>
                   </button>
                   <button
                     type="button"
@@ -272,7 +275,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }`}
                   >
                     <Sun className="w-5 h-5" />
-                    <span className="text-xs font-medium">Light Mode</span>
+                    <span className="text-xs font-medium">{t.settings.lightMode}</span>
                   </button>
                   <button
                     type="button"
@@ -284,13 +287,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }`}
                   >
                     <Laptop className="w-5 h-5" />
-                    <span className="text-xs font-medium">System Auto</span>
+                    <span className="text-xs font-medium">{t.settings.systemAuto}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Language Section (Spec Section 70, 72, 86, 92) */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Languages className="w-3.5 h-3.5 text-neutral-400" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                    {t.settings.languageTitle}
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocale('en');
+                      onUpdateSettings({ locale: 'en' });
+                    }}
+                    className={`p-3 rounded-lg border flex items-center justify-center gap-2 transition-all focus-ring ${
+                      locale === 'en'
+                        ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-950/40 text-blue-500 font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
+                    }`}
+                  >
+                    <span className="text-xs">{t.settings.english}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocale('tr');
+                      onUpdateSettings({ locale: 'tr' });
+                    }}
+                    className={`p-3 rounded-lg border flex items-center justify-center gap-2 transition-all focus-ring ${
+                      locale === 'tr'
+                        ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-950/40 text-blue-500 font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
+                    }`}
+                  >
+                    <span className="text-xs">{t.settings.turkish}</span>
                   </button>
                 </div>
               </div>
 
               <div className="p-3.5 rounded-lg border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 text-xs text-neutral-500 leading-relaxed">
-                Workpad follows a quiet, distraction-free aesthetic with high-contrast text and low-contrast metadata so your thoughts stay in focus.
+                {t.settings.themeDescription}
               </div>
             </div>
           )}
@@ -300,10 +343,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-6">
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                  Backup & Export
+                  {t.settings.backupSection}
                 </h3>
                 <p className="text-xs text-neutral-500 mb-3">
-                  Export your notes and workspaces at any time into standard open formats.
+                  {t.settings.backupDescription}
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -315,10 +358,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <Download className="w-5 h-5 text-blue-500 flex-shrink-0" />
                     <div>
                       <div className="font-medium text-neutral-900 dark:text-neutral-100 text-xs">
-                        Export .workpad Backup
+                        {t.settings.exportWorkpad}
                       </div>
                       <div className="text-[11px] text-neutral-400">
-                        Portable JSON with all workspaces & history
+                        {t.settings.exportWorkpadDesc}
                       </div>
                     </div>
                   </button>
@@ -331,10 +374,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <FileText className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     <div>
                       <div className="font-medium text-neutral-900 dark:text-neutral-100 text-xs">
-                        Export Markdown (.md)
+                        {t.settings.exportMarkdown}
                       </div>
                       <div className="text-[11px] text-neutral-400">
-                        Plain markdown notes with tasks & links
+                        {t.settings.exportMarkdownDesc}
                       </div>
                     </div>
                   </button>
@@ -344,7 +387,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Import Section */}
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                  Import Workspace
+                  {t.settings.importSection}
                 </h3>
                 <input
                   ref={fileInputRef}
@@ -359,7 +402,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 hover:border-blue-500 flex items-center justify-center gap-2 text-xs text-neutral-600 dark:text-neutral-300 cursor-pointer transition-colors focus-ring"
                 >
                   <Upload className="w-4 h-4 text-neutral-400" />
-                  <span>Choose .workpad file to restore</span>
+                  <span>{t.settings.chooseFile}</span>
                 </label>
 
                 {importError && (
@@ -373,25 +416,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="mt-3 p-3.5 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 space-y-3">
                     <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 text-xs font-semibold">
                       <CheckCircle className="w-4 h-4" />
-                      <span>Valid Backup: {importPreview.file.name}</span>
+                      <span>{t.settings.validBackup}: {importPreview.file.name}</span>
                     </div>
                     <div className="text-xs text-neutral-600 dark:text-neutral-400 space-y-1">
                       <div>
-                        <strong>Contents:</strong> {importPreview.stats.itemsCount} items across {importPreview.stats.workspacesCount} workspaces.
+                        <strong>{t.settings.contentsSummary}:</strong> {importPreview.stats.itemsCount} {locale === 'tr' ? 'öge' : 'items'} ({importPreview.stats.workspacesCount} {locale === 'tr' ? 'çalışma alanı' : 'workspaces'})
                       </div>
                       <div>
-                        <strong>Exported at:</strong> {new Date(importPreview.exportedAt).toLocaleString()}
+                        <strong>{t.settings.exportedAtLabel}:</strong> {new Date(importPreview.exportedAt).toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-US')}
                       </div>
                       {importPreview.conflictingCount > 0 && (
                         <div className="text-amber-600 dark:text-amber-400">
-                          ⚠️ {importPreview.conflictingCount} notes exist in your current database.
+                          ⚠️ {importPreview.conflictingCount} {t.settings.conflictsWarning}
                         </div>
                       )}
                     </div>
 
                     <div className="space-y-1.5 pt-1">
                       <div className="text-[11px] font-semibold text-neutral-500 uppercase">
-                        Import Strategy:
+                        {t.settings.importStrategy}:
                       </div>
                       <label className="flex items-center gap-2 text-xs cursor-pointer">
                         <input
@@ -401,7 +444,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           checked={importMode === 'merge'}
                           onChange={() => setImportMode('merge')}
                         />
-                        <span>Merge (safely keeps existing data)</span>
+                        <span>{t.settings.mergeOption}</span>
                       </label>
                       <label className="flex items-center gap-2 text-xs cursor-pointer">
                         <input
@@ -411,7 +454,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           checked={importMode === 'new_workspace'}
                           onChange={() => setImportMode('new_workspace')}
                         />
-                        <span>Import into a fresh workspace</span>
+                        <span>{t.settings.newWorkspaceOption}</span>
                       </label>
                       <label className="flex items-center gap-2 text-xs cursor-pointer text-red-500 dark:text-red-400">
                         <input
@@ -421,7 +464,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           checked={importMode === 'replace'}
                           onChange={() => setImportMode('replace')}
                         />
-                        <span>Replace current notes completely</span>
+                        <span>{t.settings.replaceOption}</span>
                       </label>
                     </div>
 
@@ -431,14 +474,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onClick={() => setImportPreview(null)}
                         className="px-3 py-1.5 rounded text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
                       >
-                        Cancel
+                        {t.common.cancel}
                       </button>
                       <button
                         type="button"
                         onClick={executeImport}
                         className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium focus-ring"
                       >
-                        Execute Import
+                        {t.settings.executeImport}
                       </button>
                     </div>
                   </div>
@@ -448,22 +491,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Storage Diagnostic */}
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                  Storage Status
+                  {t.settings.storageStatus}
                 </h3>
                 <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-3">
                     <HardDrive className="w-5 h-5 text-neutral-400" />
                     <div>
                       <div className="font-medium text-neutral-800 dark:text-neutral-200">
-                        IndexedDB Local Storage
+                        {t.settings.activeNotesLabel}
                       </div>
                       <div className="text-neutral-500 text-[11px]">
-                        {items.filter((i) => i.status === 'active').length} active notes · {workspaces.length} workspaces · {items.filter((i) => i.status === 'archived').length} archived
+                        {items.filter((i) => i.status === 'active').length} {locale === 'tr' ? 'aktif not' : 'active notes'} · {workspaces.length} {locale === 'tr' ? 'çalışma alanı' : 'workspaces'} · {items.filter((i) => i.status === 'archived').length} {locale === 'tr' ? 'arşivlenmiş' : 'archived'}
                       </div>
                     </div>
                   </div>
                   <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-mono text-[10px]">
-                    Healthy
+                    {t.settings.healthyBadge}
                   </span>
                 </div>
               </div>
@@ -473,10 +516,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {showResetConfirm ? (
                   <div className="p-3.5 rounded-lg border border-red-300 dark:border-red-900 bg-red-50/50 dark:bg-red-950/30 text-xs space-y-2">
                     <div className="font-semibold text-red-600 dark:text-red-400">
-                      Permanently erase all local data?
+                      {t.settings.clearDataConfirmTitle}
                     </div>
                     <div className="text-neutral-600 dark:text-neutral-400 text-xs">
-                      This action is permanent and cannot be undone. All notes, workspaces, and history stored on this device will be erased.
+                      {t.settings.clearDataConfirmDesc}
                     </div>
                     <div className="flex justify-end gap-2 pt-1">
                       <button
@@ -484,7 +527,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onClick={() => setShowResetConfirm(false)}
                         className="px-2.5 py-1.5 rounded text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
                       >
-                        Cancel
+                        {t.common.cancel}
                       </button>
                       <button
                         type="button"
@@ -495,7 +538,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }}
                         className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium focus-ring"
                       >
-                        Yes, Erase Everything
+                        {t.settings.yesErase}
                       </button>
                     </div>
                   </div>
@@ -506,7 +549,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="text-xs text-red-500 hover:text-red-600 dark:text-red-400 flex items-center gap-1.5 focus-ring rounded"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear all local data and reset</span>
+                    <span>{t.settings.clearDataButton}</span>
                   </button>
                 )}
               </div>
@@ -517,18 +560,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'keyboard' && (
             <div className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                Keyboard Shortcuts
+                {t.settings.keyboardTitle}
               </h3>
               <div className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
                 {[
-                  { key: 'Ctrl + Space', mac: '⌘ + Space', desc: 'Quick Capture thought from anywhere' },
-                  { key: 'Ctrl + K', mac: '⌘ + K', desc: 'Search / External Memory' },
-                  { key: 'Ctrl + Enter', mac: '⌘ + Enter', desc: 'Convert note to checklist / Toggle task' },
-                  { key: 'Ctrl + Z', mac: '⌘ + Z', desc: 'Undo last action (delete, archive, edit)' },
-                  { key: 'Ctrl + Shift + Z', mac: '⌘ + Shift + Z', desc: 'Redo previously undone action' },
-                  { key: 'Ctrl + S', mac: '⌘ + S', desc: 'Save .workpad backup snapshot' },
-                  { key: 'Esc', mac: 'Esc', desc: 'Close any modal / cancel inline edit' },
-                  { key: '?', mac: '?', desc: 'Show shortcuts reference' },
+                  { key: 'Ctrl + Space', mac: '⌘ + Space', desc: t.shortcuts.quickCapture },
+                  { key: 'Ctrl + K', mac: '⌘ + K', desc: t.shortcuts.search },
+                  { key: 'Ctrl + Enter', mac: '⌘ + Enter', desc: t.shortcuts.convertTask },
+                  { key: 'Ctrl + Z', mac: '⌘ + Z', desc: t.shortcuts.undo },
+                  { key: 'Ctrl + Shift + Z', mac: '⌘ + Shift + Z', desc: t.shortcuts.redo },
+                  { key: 'Ctrl + S', mac: '⌘ + S', desc: t.shortcuts.saveBackup },
+                  { key: 'Esc', mac: 'Esc', desc: t.shortcuts.closeDialog },
+                  { key: '?', mac: '?', desc: t.shortcuts.showHelp },
                 ].map((s, idx) => (
                   <div key={idx} className="py-2 flex items-center justify-between">
                     <span className="text-neutral-600 dark:text-neutral-300">{s.desc}</span>
@@ -547,33 +590,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                    Workpad
+                    {t.settings.aboutTitle}
                   </h3>
                   <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
                     v1.0.0
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  A tiny, local-first work surface for computer work.
+                  {locale === 'tr'
+                    ? 'Bilgisayar çalışmaları için sade, yerel öncelikli çalışma yüzeyi.'
+                    : 'A tiny, local-first work surface for computer work.'}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-lg border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2 text-xs text-neutral-600 dark:text-neutral-400">
                 <div className="flex items-center gap-2 font-medium text-neutral-800 dark:text-neutral-200">
                   <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span>Privacy Guarantee</span>
+                  <span>{locale === 'tr' ? 'Gizlilik Garantisi' : 'Privacy Guarantee'}</span>
                 </div>
                 <p>
-                  <strong>Core Philosophy:</strong> Open it. Capture the thought. Keep working. Organize later.
+                  <strong>{locale === 'tr' ? 'Temel Felsefe:' : 'Core Philosophy:'}</strong> {t.settings.corePhilosophy}
                 </p>
                 <p>
-                  Zero server dependencies, zero mandatory accounts, and zero cloud tracking. 100% of your notes remain entirely on your computer in IndexedDB.
+                  {t.settings.localGuarantee}
                 </p>
               </div>
 
               <div className="pt-2 text-xs text-neutral-400 space-y-1">
-                <div>Licensed under the <strong>MIT License</strong>.</div>
-                <div>Designed & engineered for high focus and zero thought-to-capture friction.</div>
+                <div>{t.settings.licenseNotice}</div>
+                <div>
+                  {locale === 'tr'
+                    ? 'Yüksek odaklanma ve sıfır düşünce sürtünmesi için tasarlandı.'
+                    : 'Designed & engineered for high focus and zero thought-to-capture friction.'}
+                </div>
               </div>
             </div>
           )}

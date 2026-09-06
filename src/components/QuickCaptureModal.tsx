@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ItemType, Workspace } from '../types';
 import { X, ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 interface QuickCaptureModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
   workspaces,
   activeWorkspaceId = null,
 }) => {
+  const { t } = useWorkpad();
   const [content, setContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
   const [workspaceId, setWorkspaceId] = useState<string | null>(activeWorkspaceId);
@@ -135,7 +137,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
               id="quick-capture-title"
               className="text-xs font-semibold text-neutral-500 uppercase tracking-wider"
             >
-              Quick Capture
+              {t.capture.quickCaptureTitle}
             </span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-400 font-mono">
               Ctrl+Space
@@ -143,7 +145,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            aria-label="Close capture modal"
+            aria-label={t.common.close}
             className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
           >
             <X className="w-4 h-4" />
@@ -156,9 +158,9 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onPaste={handlePaste}
-            placeholder="What's on your mind?"
+            placeholder={t.capture.focusedPlaceholder}
             rows={3}
-            aria-label="What's on your mind?"
+            aria-label={t.capture.focusedPlaceholder}
             className="w-full bg-transparent resize-none text-base text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
           />
 
@@ -166,17 +168,17 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
             <div className="flex items-center gap-2">
               {type !== 'text' && (
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 capitalize">
-                  {type}
+                  {t.types[type] || type}
                 </span>
               )}
 
               <select
                 value={workspaceId || ''}
                 onChange={(e) => setWorkspaceId(e.target.value || null)}
-                aria-label="Target workspace"
+                aria-label={t.item.moveToWorkspace}
                 className="text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded px-2 py-1 border-none focus-ring"
               >
-                <option value="">Scratch</option>
+                <option value="">{t.item.scratchOption}</option>
                 {workspaces.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -187,17 +189,17 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
 
             <div className="flex items-center gap-3">
               <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-mono hidden sm:inline">
-                Enter to save · Ctrl+Enter for task
+                {t.capture.saveHint} · {t.capture.taskHint}
               </span>
               <button
                 type="button"
                 onClick={() => handleSave()}
                 disabled={!content.trim() || isSubmitting}
                 className="px-3 py-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-ring flex items-center gap-1.5"
-                title="Save capture (Enter)"
-                aria-label="Save capture"
+                title={`${t.common.save} (${t.capture.saveHint})`}
+                aria-label={t.common.save}
               >
-                <span>Save</span>
+                <span>{t.common.save}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

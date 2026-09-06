@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { Archive } from 'lucide-react';
+import { useWorkpad } from '../hooks/useWorkpad';
 
 interface ArchiveViewProps {
   items: Item[];
@@ -26,6 +27,8 @@ export const ArchiveView: React.FC<ArchiveViewProps> = ({
   onRestore,
   onDelete,
 }) => {
+  const { t, locale } = useWorkpad();
+
   const archivedItems = useMemo(
     () =>
       items
@@ -40,24 +43,24 @@ export const ArchiveView: React.FC<ArchiveViewProps> = ({
         <div>
           <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
             <Archive className="w-4 h-4 text-neutral-500" />
-            Archive
+            {t.archive.title}
           </h2>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Kept notes that are out of your active working surface. Completely reversible.
+            {t.archive.subtitle}
           </p>
         </div>
         <span className="text-xs font-mono text-neutral-400">
-          {archivedItems.length} items
+          {archivedItems.length} {locale === 'tr' ? 'öğe' : 'items'}
         </span>
       </div>
 
       {archivedItems.length === 0 ? (
         <div className="py-16 text-center space-y-3 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/20">
           <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
-            Archive is empty.
+            {t.archive.emptyHeading}
           </p>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-            When an item is finished or no longer immediately needed, archive it to keep your surface calm.
+            {t.archive.emptySubheading}
           </p>
         </div>
       ) : (
@@ -67,6 +70,7 @@ export const ArchiveView: React.FC<ArchiveViewProps> = ({
               key={item.id}
               item={item}
               workspaces={workspaces}
+              locale={locale}
               onUpdate={onUpdate}
               onToggleCheck={onToggleCheck}
               onConvertType={onConvertType}

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Item, Workspace } from '../types';
 import { searchItems } from '../services/search';
 import { formatTimeAgo } from '../utils/format';
+import { useWorkpad } from '../hooks/useWorkpad';
 import { Search, X, ArrowUpDown, CornerDownLeft, ExternalLink, CheckSquare, FileText, Quote, Sparkles } from 'lucide-react';
 
 interface SearchModalProps {
@@ -21,6 +22,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onSelectItem,
   activeWorkspaceId = null,
 }) => {
+  const { t, locale } = useWorkpad();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +110,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   };
 
   const getWorkspaceName = (wsId: string | null) => {
-    if (!wsId) return 'Scratch';
+    if (!wsId) return t.item.scratchOption;
     return workspaces.find((w) => w.id === wsId)?.name || 'Workspace';
   };
 
@@ -126,7 +128,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <span id="search-dialog-title" className="sr-only">
-          Search your work
+          {t.search.dialogTitle}
         </span>
 
         {/* Search header */}
@@ -137,14 +139,14 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your work... (Ctrl+K)"
-            aria-label="Search your work"
+            placeholder={t.search.inputPlaceholder}
+            aria-label={t.search.dialogTitle}
             className="flex-1 bg-transparent text-sm md:text-base text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              aria-label="Clear search query"
+              aria-label={t.common.cancel}
               className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
             >
               <X className="w-4 h-4" />
@@ -156,9 +158,9 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         <div className="flex-1 overflow-y-auto p-2 divide-y divide-neutral-100 dark:divide-neutral-800/40">
           {searchResults.length === 0 ? (
             <div className="p-12 text-center text-sm text-neutral-400 dark:text-neutral-500 space-y-1">
-              <p className="font-medium text-neutral-700 dark:text-neutral-300">Nothing found.</p>
+              <p className="font-medium text-neutral-700 dark:text-neutral-300">{t.search.noResultsHeading}</p>
               <p className="text-xs text-neutral-400 dark:text-neutral-500">
-                Try a different word or search source/title.
+                {t.search.noResultsSubheading}
               </p>
             </div>
           ) : (
@@ -208,12 +210,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                           {getWorkspaceName(item.workspaceId)}
                         </span>
                         <span>·</span>
-                        <span>{formatTimeAgo(item.updatedAt)}</span>
+                        <span>{formatTimeAgo(item.updatedAt, locale)}</span>
                         {item.status === 'archived' && (
                           <>
                             <span>·</span>
                             <span className="px-1 py-0.2 rounded bg-neutral-200 dark:bg-neutral-700 text-[10px]">
-                              Archived
+                              {t.navigation.archive}
                             </span>
                           </>
                         )}
@@ -238,7 +240,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
                   {isSelected && (
                     <span className="flex-shrink-0 text-xs text-neutral-400 flex items-center gap-1 font-mono">
-                      Jump <CornerDownLeft className="w-3 h-3" />
+                      {t.search.selectHint} <CornerDownLeft className="w-3 h-3" />
                     </span>
                   )}
                 </div>
@@ -251,13 +253,13 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         <div className="px-4 py-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[11px] text-neutral-400 font-mono">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <ArrowUpDown className="w-3 h-3" /> navigate
+              <ArrowUpDown className="w-3 h-3" /> {t.search.recentHint}
             </span>
             <span className="flex items-center gap-1">
-              <CornerDownLeft className="w-3 h-3" /> select
+              <CornerDownLeft className="w-3 h-3" /> {t.search.selectHint}
             </span>
           </div>
-          <span>[Esc] to close</span>
+          <span>{t.search.closeHint}</span>
         </div>
       </div>
     </div>
