@@ -1,4 +1,4 @@
-﻿import { TranslationSchema } from './types';
+import { TranslationSchema } from './types';
 
 export const en: TranslationSchema = {
   navigation: {
@@ -158,6 +158,8 @@ export const en: TranslationSchema = {
     languageTitle: 'Language',
     english: 'English',
     turkish: 'Türkçe',
+    installApp: 'Install Workpad',
+    installAppDesc: 'Use Workpad as a standalone desktop app',
   },
   shortcuts: {
     quickCapture: 'Open Quick Capture from anywhere',

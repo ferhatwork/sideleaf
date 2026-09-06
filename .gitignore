@@ -1,5 +1,6 @@
-﻿node_modules
+node_modules
 dist
+release
 dist-ssr
 *.local
 .vscode/*

@@ -38,38 +38,98 @@ It is deliberately **not** a generic notes app, Notion clone, project management
 
 ---
 
-## Quick Start
+## Quick Start / Hızlı Başlangıç
 
-### Prerequisites
+### English
+1. **Open Workpad** (double-click `Workpad.bat` on Windows or install as PWA).
+2. **Start writing** — no setup, no accounts, no folder picking.
+3. **Press `Ctrl + Space`** (or `Cmd + Space`) for quick capture from anywhere.
+4. **Your data stays local** on your device unless you explicitly export it.
 
-- [Node.js](https://nodejs.org/) v18+ (tested on v22+)
-- [npm](https://www.npmjs.com/)
+### Türkçe
+1. **Workpad'i aç** (Windows'ta `Workpad.bat` dosyasına çift tıkla veya PWA olarak yükle).
+2. **Yazmaya başla** — hesap gerekmez, kurulum yok, klasör seçme zorunluluğu yok.
+3. **`Ctrl + Space`** (veya `Cmd + Space`) ile aklına geleni anında yakala.
+4. **Dışa aktarmadığın sürece verilerin yerel kalır**, yalnızca cihazında saklanır.
 
-### Running Locally
+---
+
+## For Users (End-User Experience)
+
+Workpad is designed so that **non-technical users do not need Node.js, npm, a terminal, or a dev server.**
+
+### Launching on Windows (One-Click)
+- Double-click **[Workpad.bat](file:///C:/Users/Ferhat%20%C3%96zdemir/Desktop/workpad/Workpad.bat)** in the Workpad folder.
+- Workpad will automatically start a minimal, secure local process on loopback `http://127.0.0.1:[port]/` using built-in Windows PowerShell and immediately open your default browser.
+- *(Optional)* Double-click `scripts/create-desktop-shortcut.bat` to create a dedicated desktop shortcut with the Workpad icon.
+
+### Launching on macOS & Linux
+- Open a terminal in the Workpad folder and run:
+  ```bash
+  ./Workpad.sh
+  ```
+- Automatically detects Python 3 or Node.js on your system, binds strictly to `127.0.0.1`, and opens your default browser via `open` or `xdg-open`.
+
+### Installing as a Desktop App (PWA)
+Workpad is a full Progressive Web App:
+- **Chrome / Edge**: Click the install icon in the address bar or choose **"Install Workpad"** in the top navigation or Settings.
+- **Safari (macOS Sonoma+)**: Click **File → Add to Dock**.
+- Once installed, Workpad opens in its own standalone, clean application window without browser toolbars.
+
+### Offline Behavior
+- Workpad works completely offline. Disconnect Wi-Fi, go on airplane mode, or use it anywhere.
+- All notes, search indexing, and workspaces function locally with 0 internet dependency.
+
+---
+
+## For Developers
+
+Developers can clone the repository and use standard npm development commands:
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. Start local development server
+# 2. Start local development server with Vite HMR
 npm run dev
-```
 
-Open your browser at `http://localhost:5173`.
-
-### Running Tests
-
-```bash
+# 3. Run automated tests (Vitest)
 npm test
-```
 
-### Building for Production (Static Assets)
-
-```bash
+# 4. Build production static bundle (dist/)
 npm run build
+
+# 5. Run zero-dependency local production launcher
+npm run launch
+
+# 6. Package standalone portable distribution bundle
+npm run package
 ```
 
-This generates production-ready, zero-dependency static files in the `dist/` directory that can be served from any static web server, GitHub Pages, or opened as a PWA.
+---
+
+## Distribution Modes
+
+Workpad supports three primary distribution modes:
+
+| Mode | Target | Description |
+| --- | --- | --- |
+| **Mode A: Static Web Hosting** | Public Web / Teams | Run `npm run build` to output `dist/`. Deploy to GitHub Pages, Cloudflare Pages, Netlify, Vercel, or any static HTTP host. No backend required. |
+| **Mode B: PWA (Progressive Web App)** | Desktop / Mobile Users | Standalone app window, offline service worker caching, application icons (`192x192`, `512x512`, SVG, ICO). |
+| **Mode C: Local Launcher Package** | Local-First Desktops | Portable folder with `Workpad.bat` (Windows PowerShell `HttpListener`), `Workpad.sh` (macOS/Linux), and `scripts/launcher.mjs`. Binds only to `127.0.0.1` on an ephemeral port. |
+
+### Creating a Distribution Package
+Run:
+```bash
+npm run package
+```
+This builds production assets, creates a standalone directory `release/workpad/` and packages `release/Workpad-Portable.zip` ready for distribution to users.
+
+### Launcher Security & Privacy
+- **Strict Loopback Binding**: The launcher binds strictly to `http://127.0.0.1:$port/` and never listens on external network interfaces (`0.0.0.0`).
+- **Path Traversal Prevention**: Only files inside `dist/` are served; attempts to traverse outside (`..`) are rejected with `403 Forbidden`.
+- **Ephemeral Port Selection**: Ports are selected dynamically at startup to avoid conflicts with other applications.
+- **Graceful Lifecycle**: Press `Ctrl+C` in the launcher window to terminate the local server cleanly. No background daemons or services remain.
 
 ---
 
@@ -102,21 +162,72 @@ Workspaces can be exported with one click into standard GitHub Flavored Markdown
 
 ---
 
-## Privacy Policy & Philosophy
+## Architecture & Data Safety
 
-- **Zero Remote Storage**: Your data never leaves your computer unless you explicitly export a file.
-- **No Third-Party Scripts**: No analytics, no marketing pixels, no remote font CDNs, no telemetry.
-- **No Mandatory AI**: No unsolicited AI calls or automatic uploading of your private notes.
+```text
+                ┌─────────────────────────┐
+                │       Workpad UI        │
+                │ React / TypeScript / UI │
+                └────────────┬────────────┘
+                             │
+                ┌────────────▼────────────┐
+                │    Local App State      │
+                │   (useWorkpad Context)  │
+                └────────────┬────────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+        IndexedDB Store    Search       Import/Export
+      (IDB / LocalStorage) Engine     (.workpad / .md)
+              │
+              ▼
+       Local User Device
+
+Distribution:
+      ┌────────┬──────────┬─────────────┐
+      ▼        ▼          ▼
+     PWA     Static      Portable
+             Build       Launcher
+```
+
+### Local Storage Guarantee
+- **Zero Remote Storage**: 100% of your notes, workspaces, and settings remain in your browser's local IndexedDB storage (`workpad-db`).
+- **No Third-Party Scripts**: No tracking pixels, Google Analytics, telemetry, remote CDN fonts, or external scripts.
+- **Local Search**: Real-time multi-factor relevance ranking executes in memory directly inside your browser.
 
 ---
 
-## Browser Support
+## Uninstallation & Data Ownership
 
-- Google Chrome / Chromium (Desktop & Mobile)
-- Apple Safari (macOS & iOS)
-- Mozilla Firefox
-- Microsoft Edge
-- Opera / Brave / Vivaldi
+You own your data completely:
+
+1. **Backing Up Before Removal**:
+   - Open **Settings & Data** (gear icon or `Ctrl + S`).
+   - Click **Export Workpad (.workpad)** for a full JSON backup, or **Export Markdown (.md)** for human-readable notes.
+2. **Uninstalling the App**:
+   - **PWA**: Right-click the app icon or title bar menu and select **Uninstall Workpad**.
+   - **Local Launcher**: Simply delete the `workpad/` folder.
+3. **Clearing Browser Data**:
+   - Deleting launcher files does **not** automatically delete browser IndexedDB data.
+   - To completely wipe all local notes, click **"Clear All Data"** in Workpad's Settings modal, or clear site data for `localhost` / your hosted domain in your browser settings.
+
+---
+
+## Verified Compatibility Matrix
+
+Tested across production builds (`npm run build` and `npm run package`) with the development server stopped:
+
+| Scenario | Chrome (Desktop) | Microsoft Edge | Apple Safari | Mozilla Firefox | Windows Launcher |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Production Build (`dist/`)** | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **One-Click Launch (`Workpad.bat`)** | ✓ | ✓ | — | — | ✓ |
+| **Local IndexedDB Persistence** | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Offline Startup (No Internet)** | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Instant Memory Search (`Ctrl+K`)** | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Import / Export (`.workpad`, `.md`)** | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Turkish / English Localization** | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **PWA Standalone App Mode** | ✓ | ✓ | ✓ | ✓ | — |
 
 ---
 

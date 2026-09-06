@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActiveView, Workspace } from '../types';
-import { Search, Plus, Settings, Menu, HelpCircle } from 'lucide-react';
+import { Search, Plus, Settings, Menu, HelpCircle, Download, X } from 'lucide-react';
 import { useWorkpad } from '../hooks/useWorkpad';
 
 interface HeaderProps {
@@ -23,7 +23,14 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenShortcuts,
   onToggleMobileSidebar,
 }) => {
-  const { t, locale, setLocale } = useWorkpad();
+  const { t, locale, setLocale, canInstallPwa, installPwa } = useWorkpad();
+  const [isHeaderDismissed, setIsHeaderDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('workpad_pwa_header_dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   const currentWorkspace =
     activeView.type === 'workspace'
@@ -126,6 +133,36 @@ export const Header: React.FC<HeaderProps> = ({
             EN
           </span>
         </button>
+
+        {/* Subtle PWA Install Option (Dismissible, Spec Section 13) */}
+        {canInstallPwa && !isHeaderDismissed && (
+          <div className="flex items-center rounded-md border border-blue-200/80 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/40 p-0.5">
+            <button
+              type="button"
+              onClick={installPwa}
+              className="flex items-center gap-1.5 px-2 py-0.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors focus-ring rounded font-medium"
+              title={t.settings.installAppDesc || t.settings.installApp}
+              aria-label={t.settings.installApp}
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">{t.settings.installApp}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsHeaderDismissed(true);
+                try {
+                  localStorage.setItem('workpad_pwa_header_dismissed', 'true');
+                } catch {}
+              }}
+              className="p-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 rounded focus-ring"
+              title={t.common.close}
+              aria-label={t.common.close}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
 
         {/* Quick Capture Button */}
         <button

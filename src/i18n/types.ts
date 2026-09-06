@@ -1,4 +1,4 @@
-﻿export interface NavigationTranslations {
+export interface NavigationTranslations {
   today: string;
   scratch: string;
   recent: string;
@@ -166,6 +166,8 @@ export interface SettingsTranslations {
   languageTitle: string;
   english: string;
   turkish: string;
+  installApp: string;
+  installAppDesc: string;
 }
 
 export interface ShortcutsTranslations {

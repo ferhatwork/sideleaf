@@ -16,6 +16,7 @@ import { detectSystemLocale, getTranslation, TranslationSchema } from '../i18n';
 import { db } from '../services/db';
 import { generateId } from '../utils/id';
 import { createItemRecord, updateWorkSession } from '../utils/domain';
+import { usePwaInstall } from './usePwaInstall';
 
 interface UndoAction {
   description: string;
@@ -101,6 +102,10 @@ interface WorkpadContextType extends ApplicationCommands {
   performUndo: () => void;
   performRedo: () => void;
   dismissToast: () => void;
+
+  // PWA Installation (Spec Sections 11, 13)
+  canInstallPwa: boolean;
+  installPwa: () => Promise<void>;
 }
 
 const defaultSettings: ExtendedUserSettings = {
@@ -133,6 +138,9 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+
+  // PWA Installation state & prompt
+  const { canInstallPwa, installPwa } = usePwaInstall();
 
   // Toast & Undo/Redo Stack (Spec Section 29, 53, 54)
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -839,6 +847,8 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       performUndo,
       performRedo,
       dismissToast,
+      canInstallPwa,
+      installPwa,
     }),
     [
       items,
@@ -882,6 +892,8 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       performUndo,
       performRedo,
       dismissToast,
+      canInstallPwa,
+      installPwa,
     ]
   );
 
@@ -895,3 +907,6 @@ export function useWorkpad() {
   }
   return context;
 }
+
+export { usePwaInstall };
+

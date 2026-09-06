@@ -54,7 +54,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportData,
   onResetAllData,
 }) => {
-  const { t, locale, setLocale } = useWorkpad();
+  const { t, locale, setLocale, canInstallPwa, installPwa } = useWorkpad();
   const [activeTab, setActiveTab] = useState<'appearance' | 'data' | 'keyboard' | 'about'>('appearance');
   const [importPreview, setImportPreview] = useState<{
     file: File;
@@ -602,6 +602,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     : 'A tiny, local-first work surface for computer work.'}
                 </p>
               </div>
+
+              {canInstallPwa && (
+                <div className="p-3 rounded-lg border border-blue-200/80 dark:border-blue-950 bg-blue-50/50 dark:bg-blue-950/20 flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="text-xs font-medium text-neutral-800 dark:text-neutral-200">
+                      {t.settings.installApp}
+                    </div>
+                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      {t.settings.installAppDesc}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await installPwa();
+                    }}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors focus-ring"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t.settings.installApp}</span>
+                  </button>
+                </div>
+              )}
 
               <div className="p-3.5 rounded-lg border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2 text-xs text-neutral-600 dark:text-neutral-400">
                 <div className="flex items-center gap-2 font-medium text-neutral-800 dark:text-neutral-200">
