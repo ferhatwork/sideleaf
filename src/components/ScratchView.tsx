@@ -62,7 +62,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
         {/* Filter */}
         <div className="flex items-center gap-1 text-xs">
           <Filter className="w-3.5 h-3.5 text-neutral-400 mr-1" />
-          {['all', 'text', 'checklist', 'quote', 'link'].map((t) => (
+          {['all', 'text', 'checklist', 'quote', 'link', 'decision'].map((t) => (
             <button
               key={t}
               onClick={() => {
@@ -95,7 +95,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
             Scratch is empty.
           </p>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-            Capture anything. Organize later.
+            Capture anything. It does not need a home yet.
           </p>
         </div>
       ) : (

@@ -29,6 +29,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
     { key: `${modKey} + K`, description: 'Open Search / Command Palette' },
     { key: `${modKey} + Enter`, description: 'Convert item to task / Toggle task' },
     { key: `${modKey} + Z`, description: 'Undo last action (delete, archive, convert)' },
+    { key: `${modKey} + Shift + Z`, description: 'Redo previously undone action' },
     { key: `${modKey} + S`, description: 'Export full .workpad backup snapshot' },
     { key: 'Esc', description: 'Close any active overlay / modal' },
     { key: 'Enter', description: 'Save capture in quick input / quick capture' },

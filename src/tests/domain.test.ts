@@ -241,6 +241,32 @@ describe('Domain State Transitions', () => {
       expect(restored.type).toBe('decision');
       expect(restored.content).toBe('Approved new onboarding flow');
     });
+
+    it('supports redo by re-applying task conversion on restored item', () => {
+      const note: Item = {
+        id: 'redo-test',
+        workspaceId: null,
+        type: 'text',
+        content: 'Refactor database queries',
+        status: 'active',
+        order: 20,
+        createdAt: 1000,
+        updatedAt: 1000,
+      };
+
+      // 1. Initial conversion
+      const { updatedItem } = convertToTaskMutation(note, 2000);
+      expect(updatedItem.type).toBe('checklist');
+
+      // 2. Undo
+      const reverted = revertTaskConversion(updatedItem, 'text', undefined, 3000);
+      expect(reverted.type).toBe('text');
+
+      // 3. Redo (re-apply)
+      const { updatedItem: redoneItem } = convertToTaskMutation(reverted, 4000);
+      expect(redoneItem.type).toBe('checklist');
+      expect(redoneItem.content).toBe(note.content);
+    });
   });
 
   describe('Work Session Activity Tracking (Spec Section 16)', () => {

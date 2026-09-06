@@ -92,6 +92,7 @@ interface WorkpadContextType extends ApplicationCommands {
   toast: ToastMessage | null;
   triggerToast: (text: string, undoAction?: UndoAction) => void;
   performUndo: () => void;
+  performRedo: () => void;
   dismissToast: () => void;
 }
 
@@ -125,9 +126,10 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
 
-  // Toast & Undo Stack (Spec Section 53, 54)
+  // Toast & Undo/Redo Stack (Spec Section 29, 53, 54)
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const undoStackRef = useRef<UndoAction[]>([]);
+  const redoStackRef = useRef<UndoAction[]>([]);
 
   const triggerToast = useCallback((text: string, undoAction?: UndoAction) => {
     const id = generateId('toast');
@@ -151,6 +153,14 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
 
   const performUndo = useCallback(async () => {
     const action = undoStackRef.current.pop();
+    if (action) {
+      setToast(null);
+      await action.revert();
+    }
+  }, []);
+
+  const performRedo = useCallback(async () => {
+    const action = redoStackRef.current.pop();
     if (action) {
       setToast(null);
       await action.revert();
@@ -793,6 +803,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       toast,
       triggerToast,
       performUndo,
+      performRedo,
       dismissToast,
     }),
     [
@@ -832,6 +843,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       toast,
       triggerToast,
       performUndo,
+      performRedo,
       dismissToast,
     ]
   );

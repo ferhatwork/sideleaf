@@ -146,7 +146,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
       <div className="flex items-center justify-between border-b border-neutral-200/60 dark:border-neutral-800/80 pb-2">
         <div className="flex items-center gap-1 text-xs">
           <Filter className="w-3.5 h-3.5 text-neutral-400 mr-1" />
-          {['all', 'text', 'checklist', 'quote', 'link'].map((t) => (
+          {['all', 'text', 'checklist', 'quote', 'link', 'decision'].map((t) => (
             <button
               key={t}
               onClick={() => {

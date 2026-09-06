@@ -62,16 +62,17 @@ export const AppShell: React.FC = () => {
     importWorkpadData,
     resetAllData,
 
-    // Toast & Undo
+    // Toast & Undo/Redo
     toast,
     performUndo,
+    performRedo,
     dismissToast,
   } = useWorkpad();
 
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Global Keyboard Shortcuts (Spec Section 9 & 13)
+  // Global Keyboard Shortcuts (Spec Section 9 & 13 & 29)
   useEffect(() => {
     const unregister = registerGlobalShortcuts([
       {
@@ -108,13 +109,22 @@ export const AppShell: React.FC = () => {
           downloadJsonFile(`workpad-backup-${dateStr}.workpad`, data);
         },
       },
-      // Global Undo (Spec Section 13)
+      // Global Undo (Spec Section 13, 29)
       {
         key: 'z',
         ctrlOrCmd: true,
         description: 'Undo last action',
         allowInInputs: false,
         action: () => performUndo(),
+      },
+      // Global Redo (Spec Section 29)
+      {
+        key: 'z',
+        ctrlOrCmd: true,
+        shift: true,
+        description: 'Redo previously undone action',
+        allowInInputs: false,
+        action: () => performRedo(),
       },
       {
         key: '?',
@@ -145,6 +155,7 @@ export const AppShell: React.FC = () => {
     settings,
     activity,
     performUndo,
+    performRedo,
     setIsQuickCaptureOpen,
     setIsSearchOpen,
     setIsSettingsOpen,
