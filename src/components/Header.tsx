@@ -50,8 +50,8 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleMobileSidebar}
-          className="md:hidden p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-          aria-label="Toggle navigation menu"
+          className="md:hidden p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
+          aria-label="Open Navigation Menu"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -69,7 +69,8 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Middle: Quick Search Trigger */}
       <button
         onClick={onOpenSearch}
-        className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-workpad-dark-border bg-neutral-50/50 dark:bg-neutral-900/40 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs w-64 md:w-80 transition-colors"
+        aria-label="Search your work (Ctrl+K)"
+        className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-workpad-dark-border bg-neutral-50/50 dark:bg-neutral-900/40 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs w-64 md:w-80 transition-colors focus-ring"
       >
         <Search className="w-3.5 h-3.5 flex-shrink-0" />
         <span className="flex-1 text-left truncate">Search your work...</span>
@@ -92,8 +93,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Quick Capture Button */}
         <button
           onClick={onOpenQuickCapture}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors shadow-sm"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors shadow-xs focus-ring"
           title="Quick Capture (Ctrl+Space)"
+          aria-label="Quick Capture (Ctrl+Space)"
         >
           <Plus className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Capture</span>
@@ -105,8 +107,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Shortcuts help button */}
         <button
           onClick={onOpenShortcuts}
-          className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
           title="Keyboard Shortcuts (?)"
+          aria-label="Keyboard Shortcuts"
         >
           <HelpCircle className="w-4 h-4" />
         </button>
@@ -114,8 +117,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Settings button */}
         <button
           onClick={onOpenSettings}
-          className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
           title="Settings & Data"
+          aria-label="Settings and Data"
         >
           <Settings className="w-4 h-4" />
         </button>

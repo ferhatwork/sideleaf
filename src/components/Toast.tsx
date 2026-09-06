@@ -24,13 +24,17 @@ export const Toast: React.FC<ToastProps> = ({
   }, [durationMs, onDismiss]);
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-workpad-dark-elevated shadow-xl text-xs text-neutral-800 dark:text-neutral-200 animate-in slide-in-from-bottom-3 duration-150">
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-workpad-dark-elevated shadow-xl text-xs text-neutral-800 dark:text-neutral-200 animate-in slide-in-from-bottom-3 duration-150"
+    >
       <span>{message}</span>
 
       {undoable && onUndo && (
         <button
           onClick={onUndo}
-          className="ml-1 inline-flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          className="ml-1 inline-flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400 hover:underline focus-ring rounded"
         >
           <Undo2 className="w-3.5 h-3.5" />
           Undo
@@ -39,7 +43,8 @@ export const Toast: React.FC<ToastProps> = ({
 
       <button
         onClick={onDismiss}
-        className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded"
+        aria-label="Dismiss notification"
+        className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded focus-ring"
       >
         <X className="w-3.5 h-3.5" />
       </button>

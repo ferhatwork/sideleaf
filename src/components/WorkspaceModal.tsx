@@ -32,9 +32,12 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [color, setColor] = useState('#3b82f6');
   const [description, setDescription] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
       if (editingWorkspace) {
         setName(editingWorkspace.name);
         setColor(editingWorkspace.color || '#3b82f6');
@@ -44,7 +47,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         setColor(PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
         setDescription('');
       }
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setTimeout(() => inputRef.current?.focus(), 30);
+    } else {
+      previousFocusRef.current?.focus();
     }
   }, [isOpen, editingWorkspace]);
 
@@ -67,22 +72,52 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     onClose();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab' && modalRef.current) {
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-100">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100"
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="workspace-modal-title"
+    >
       <div
+        ref={modalRef}
         className="w-full max-w-md rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FolderPlus className="w-4 h-4 text-blue-500" />
-            <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            <h2 id="workspace-modal-title" className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
               {editingWorkspace ? 'Edit Workspace' : 'New Workspace'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded"
+            aria-label="Close workspace modal"
+            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
           >
             <X className="w-4 h-4" />
           </button>
@@ -114,7 +149,8 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-6 h-6 rounded-full transition-transform ${
+                  aria-label={`Select color ${c}`}
+                  className={`w-6 h-6 rounded-full transition-transform focus-ring ${
                     color === c ? 'scale-125 ring-2 ring-offset-2 ring-neutral-400 dark:ring-offset-workpad-dark-surface' : 'hover:scale-110'
                   }`}
                   style={{ backgroundColor: c }}
@@ -140,14 +176,14 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
-              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium"
+              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium focus-ring"
             >
               {editingWorkspace ? 'Save Changes' : 'Create Workspace'}
             </button>

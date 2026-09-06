@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Item, Workspace } from '../types';
-import { Trash2, Undo2 } from 'lucide-react';
+import { Trash2, Undo2, AlertTriangle } from 'lucide-react';
 import { formatTimeAgo } from '../utils/format';
 
 interface TrashViewProps {
@@ -18,6 +18,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
   onPermanentDelete,
   onEmptyTrash,
 }) => {
+  const [showConfirmEmpty, setShowConfirmEmpty] = useState(false);
   const wsMap = useMemo(() => new Map(workspaces.map((w) => [w.id, w])), [workspaces]);
 
   const deletedItems = useMemo(
@@ -27,6 +28,11 @@ export const TrashView: React.FC<TrashViewProps> = ({
         .sort((a, b) => (b.deletedAt || b.updatedAt) - (a.deletedAt || a.updatedAt)),
     [items]
   );
+
+  const handleConfirmEmpty = async () => {
+    setShowConfirmEmpty(false);
+    await onEmptyTrash();
+  };
 
   return (
     <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
@@ -43,13 +49,44 @@ export const TrashView: React.FC<TrashViewProps> = ({
 
         {deletedItems.length > 0 && (
           <button
-            onClick={onEmptyTrash}
-            className="px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-medium transition-colors"
+            onClick={() => setShowConfirmEmpty(true)}
+            className="px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-medium transition-colors focus-ring"
           >
             Empty Trash
           </button>
         )}
       </div>
+
+      {/* Confirmation Dialog before Emptying Trash (Spec Section 27) */}
+      {showConfirmEmpty && (
+        <div className="p-4 rounded-xl border border-red-300 dark:border-red-900/80 bg-red-50/50 dark:bg-red-950/30 text-xs">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="font-semibold text-red-700 dark:text-red-400">
+                Permanently delete all {deletedItems.length} items in trash?
+              </div>
+              <div className="text-neutral-600 dark:text-neutral-400 mt-0.5">
+                This action is irreversible. All deleted notes will be permanently erased.
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={() => setShowConfirmEmpty(false)}
+                  className="px-3 py-1 rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-white dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 focus-ring"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmEmpty}
+                  className="px-3 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white font-medium focus-ring"
+                >
+                  Yes, Empty Trash
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deletedItems.length === 0 ? (
         <div className="py-16 text-center space-y-3 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/20">
@@ -84,15 +121,16 @@ export const TrashView: React.FC<TrashViewProps> = ({
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={() => onRestore(item.id)}
-                    className="px-2.5 py-1 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium flex items-center gap-1 transition-colors"
+                    className="px-2.5 py-1 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium flex items-center gap-1 transition-colors focus-ring"
                   >
                     <Undo2 className="w-3.5 h-3.5" />
                     Restore
                   </button>
                   <button
                     onClick={() => onPermanentDelete(item.id)}
-                    className="p-1 text-neutral-400 hover:text-red-500 rounded"
+                    className="p-1 text-neutral-400 hover:text-red-500 rounded focus-ring"
                     title="Permanently Delete"
+                    aria-label="Permanently Delete note"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

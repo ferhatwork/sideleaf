@@ -22,8 +22,13 @@ export function registerGlobalShortcuts(handlers: ShortcutHandler[]): () => void
     for (const h of handlers) {
       if (h.ctrlOrCmd && !hasCtrlOrCmd) continue;
       if (!h.ctrlOrCmd && hasCtrlOrCmd) continue;
+
+      // Exact Shift matching: if handler expects Shift, event must have it; if not, event must NOT have it
       if (h.shift && !event.shiftKey) continue;
+      if (!h.shift && event.shiftKey) continue;
+
       if (h.alt && !event.altKey) continue;
+      if (!h.alt && event.altKey) continue;
 
       const eventKey = event.key.toLowerCase();
       const targetKey = h.key.toLowerCase();
@@ -34,7 +39,6 @@ export function registerGlobalShortcuts(handlers: ShortcutHandler[]): () => void
         (targetKey === 'space' && (eventKey === ' ' || event.code === 'Space'));
 
       if (match) {
-        // If inside input, only execute if explicitly allowed (like Ctrl+Space or Ctrl+K or Esc)
         if (isInput && !h.allowInInputs) {
           continue;
         }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, Command } from 'lucide-react';
 
 interface ShortcutsModalProps {
@@ -7,6 +7,17 @@ interface ShortcutsModalProps {
 }
 
 export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+    } else {
+      previousFocusRef.current?.focus();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -14,30 +25,63 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
 
   const shortcuts = [
     { key: `${modKey} + Space`, description: 'Open Quick Capture from anywhere' },
+    { key: `${modKey} + Shift + Space`, description: 'Quick Capture alternate fallback' },
     { key: `${modKey} + K`, description: 'Open Search / Command Palette' },
-    { key: `${modKey} + Enter`, description: 'Convert item to checklist task / Toggle task' },
+    { key: `${modKey} + Enter`, description: 'Convert item to task / Toggle task' },
+    { key: `${modKey} + Z`, description: 'Undo last action (delete, archive, convert)' },
+    { key: `${modKey} + S`, description: 'Export full .workpad backup snapshot' },
     { key: 'Esc', description: 'Close any active overlay / modal' },
     { key: 'Enter', description: 'Save capture in quick input / quick capture' },
     { key: 'Shift + Enter', description: 'Insert new line in capture input' },
     { key: '?', description: 'Show keyboard shortcuts guide' },
   ];
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab' && modalRef.current) {
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-100">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100"
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="shortcuts-modal-title"
+    >
       <div
+        ref={modalRef}
         className="w-full max-w-md rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Command className="w-4 h-4 text-blue-500" />
-            <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            <h2 id="shortcuts-modal-title" className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
               Keyboard Shortcuts
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded"
+            aria-label="Close shortcuts modal"
+            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
           >
             <X className="w-4 h-4" />
           </button>

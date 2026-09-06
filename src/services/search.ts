@@ -40,24 +40,24 @@ export function searchItems(options: SearchOptions): SearchResult[] {
     const contentLower = item.content.toLowerCase();
     const firstLine = (contentLower.split('\n')[0] || '').trim();
 
-    // 1. Exact phrase match
+    // 1. Exact phrase match (+100) (Spec 44.1)
     if (contentLower.includes(trimmed)) {
       score += 100;
       matchedFields.push('content');
     }
 
-    // 2. First line / title match
+    // 2. Title / first line match (+50) (Spec 44.2)
     if (firstLine.includes(trimmed)) {
       score += 50;
       matchedFields.push('title');
     }
 
-    // 3. Token match
+    // Token / keyword matches (+10 per token)
     let tokensMatched = 0;
     for (const token of tokens) {
       if (contentLower.includes(token)) {
         tokensMatched++;
-        score += 15;
+        score += 10;
       }
     }
 
@@ -65,12 +65,28 @@ export function searchItems(options: SearchOptions): SearchResult[] {
     if (item.workspaceId) {
       const wsName = workspaceMap.get(item.workspaceId) || '';
       if (wsName.includes(trimmed)) {
-        score += 35;
+        score += 25;
         matchedFields.push('workspace');
       }
     }
 
-    // Check source matches
+    // 3. Recency boost (Spec 44.3)
+    // Within 1 hour: +35, within 24 hours: +25, within 7 days: +15
+    const ageHours = (now - item.updatedAt) / (1000 * 60 * 60);
+    if (ageHours < 1) {
+      score += 35;
+    } else if (ageHours < 24) {
+      score += 25;
+    } else if (ageHours < 24 * 7) {
+      score += 15;
+    }
+
+    // 4. Active workspace match (+20) (Spec 44.4)
+    if (activeWorkspaceId && item.workspaceId === activeWorkspaceId) {
+      score += 20;
+    }
+
+    // 5. Source URL / domain match (+15) (Spec 44.5)
     if (item.source) {
       const domain = (item.source.domain || '').toLowerCase();
       const url = (item.source.url || '').toLowerCase();
@@ -78,35 +94,22 @@ export function searchItems(options: SearchOptions): SearchResult[] {
       const quote = (item.source.capturedText || '').toLowerCase();
 
       if (domain.includes(trimmed) || url.includes(trimmed)) {
-        score += 40;
+        score += 15;
         matchedFields.push('source-url');
       }
       if (title.includes(trimmed)) {
-        score += 30;
+        score += 12;
         matchedFields.push('source-title');
       }
       if (quote.includes(trimmed)) {
-        score += 25;
+        score += 10;
         matchedFields.push('source-quote');
       }
     }
 
-    // If query has multiple tokens, require at least one token match
+    // Require at least one matched field or token match
     if (tokens.length > 0 && tokensMatched === 0 && matchedFields.length === 0) {
       continue;
-    }
-
-    // Active workspace bonus
-    if (activeWorkspaceId && item.workspaceId === activeWorkspaceId) {
-      score += 20;
-    }
-
-    // Recency bonus: within 24h = +15, within 7d = +8
-    const ageHours = (now - item.updatedAt) / (1000 * 60 * 60);
-    if (ageHours < 24) {
-      score += 15;
-    } else if (ageHours < 24 * 7) {
-      score += 8;
     }
 
     // Extract snippet around first occurrence
@@ -115,7 +118,10 @@ export function searchItems(options: SearchOptions): SearchResult[] {
     if (matchIndex >= 0 && item.content.length > 120) {
       const start = Math.max(0, matchIndex - 30);
       const end = Math.min(item.content.length, matchIndex + 90);
-      snippet = (start > 0 ? '...' : '') + item.content.slice(start, end).replace(/[\n\r]+/g, ' ') + (end < item.content.length ? '...' : '');
+      snippet =
+        (start > 0 ? '...' : '') +
+        item.content.slice(start, end).replace(/[\n\r]+/g, ' ') +
+        (end < item.content.length ? '...' : '');
     } else if (item.content.length > 120) {
       snippet = item.content.slice(0, 120).replace(/[\n\r]+/g, ' ') + '...';
     }

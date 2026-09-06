@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UserSettings, Workspace, Item, ActivityLog } from '../types';
 import {
   generateExportData,
@@ -55,11 +55,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     items: Item[];
     workspaces: Workspace[];
     stats: { workspacesCount: number; itemsCount: number; activityCount: number };
+    conflictingCount: number;
+    exportedAt: string;
   } | null>(null);
   const [importMode, setImportMode] = useState<'merge' | 'new_workspace' | 'replace'>('merge');
   const [importError, setImportError] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+      setImportPreview(null);
+      setImportError(null);
+      setShowResetConfirm(false);
+    } else {
+      previousFocusRef.current?.focus();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -91,11 +106,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           return;
         }
 
+        const existingItemIds = new Set(items.map((i) => i.id));
+        const conflictingCount = result.data.items.filter((i) => existingItemIds.has(i.id)).length;
+
         setImportPreview({
           file,
           items: result.data.items,
           workspaces: result.data.workspaces,
           stats: result.stats,
+          conflictingCount,
+          exportedAt: result.data.exportedAt || 'Unknown',
         });
       } catch (err) {
         setImportError('Invalid JSON file format.');
@@ -113,20 +133,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab' && modalRef.current) {
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-100">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100"
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-dialog-title"
+    >
       <div
+        ref={modalRef}
         className="w-full max-w-xl rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+          <h2
+            id="settings-dialog-title"
+            className="text-base font-semibold text-neutral-900 dark:text-neutral-100"
+          >
             Workpad Settings
           </h2>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded"
+            aria-label="Close settings modal"
+            className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
           >
             <X className="w-4 h-4" />
           </button>
@@ -143,7 +196,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ theme: 'dark' })}
-                className={`p-3 rounded-lg border flex flex-col items-center gap-2 transition-all ${
+                className={`p-3 rounded-lg border flex flex-col items-center gap-2 transition-all focus-ring ${
                   settings.theme === 'dark'
                     ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-950/40 text-blue-500'
                     : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
@@ -155,7 +208,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ theme: 'light' })}
-                className={`p-3 rounded-lg border flex flex-col items-center gap-2 transition-all ${
+                className={`p-3 rounded-lg border flex flex-col items-center gap-2 transition-all focus-ring ${
                   settings.theme === 'light'
                     ? 'border-blue-500 bg-blue-50/20 text-blue-600'
                     : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
@@ -167,7 +220,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ theme: 'system' })}
-                className={`p-3 rounded-lg border flex flex-col items-center gap-2 transition-all ${
+                className={`p-3 rounded-lg border flex flex-col items-center gap-2 transition-all focus-ring ${
                   settings.theme === 'system'
                     ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-950/40 text-blue-500'
                     : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
@@ -192,7 +245,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={handleExportJson}
-                className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 flex items-center gap-3 text-left transition-colors"
+                className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 flex items-center gap-3 text-left transition-colors focus-ring"
               >
                 <Download className="w-5 h-5 text-blue-500 flex-shrink-0" />
                 <div>
@@ -208,7 +261,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={handleExportMarkdown}
-                className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 flex items-center gap-3 text-left transition-colors"
+                className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 flex items-center gap-3 text-left transition-colors focus-ring"
               >
                 <FileText className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                 <div>
@@ -234,7 +287,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
               <label
                 htmlFor="workpad-file-import"
-                className="p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 hover:border-blue-500 flex items-center justify-center gap-2 text-xs text-neutral-600 dark:text-neutral-300 cursor-pointer transition-colors"
+                className="p-3 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 hover:border-blue-500 flex items-center justify-center gap-2 text-xs text-neutral-600 dark:text-neutral-300 cursor-pointer transition-colors focus-ring"
               >
                 <Upload className="w-4 h-4 text-neutral-400" />
                 <span>Import from .workpad file</span>
@@ -248,18 +301,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
 
-            {/* Import Preview Modal / Box */}
+            {/* Import Preview Box (Spec Section 54: Workspace name, item count, last updated, conflict preview) */}
             {importPreview && (
               <div className="mt-3 p-3.5 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 space-y-3">
                 <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 text-xs font-semibold">
                   <CheckCircle className="w-4 h-4" />
                   <span>Valid Backup File: {importPreview.file.name}</span>
                 </div>
-                <div className="text-xs text-neutral-600 dark:text-neutral-400">
-                  Contains: {importPreview.stats.itemsCount} items across {importPreview.stats.workspacesCount} workspaces.
+                <div className="text-xs text-neutral-600 dark:text-neutral-400 space-y-1">
+                  <div>
+                    <strong>Contents:</strong> {importPreview.stats.itemsCount} items across {importPreview.stats.workspacesCount} workspaces.
+                  </div>
+                  <div>
+                    <strong>Exported at:</strong> {new Date(importPreview.exportedAt).toLocaleString()}
+                  </div>
+                  {importPreview.workspaces.length > 0 && (
+                    <div className="truncate">
+                      <strong>Workspaces:</strong> {importPreview.workspaces.map((w) => w.name).join(', ')}
+                    </div>
+                  )}
+                  {importPreview.conflictingCount > 0 && (
+                    <div className="text-amber-600 dark:text-amber-400">
+                      ⚠️ {importPreview.conflictingCount} notes already exist in your local storage.
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 pt-1">
                   <div className="text-[11px] font-semibold text-neutral-500 uppercase">
                     Select Import Mode:
                   </div>
@@ -271,7 +339,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       checked={importMode === 'merge'}
                       onChange={() => setImportMode('merge')}
                     />
-                    <span>Merge with current data (Safe, won't overwrite existing notes)</span>
+                    <span>Merge with current data (Keeps newest records if duplicates exist)</span>
                   </label>
                   <label className="flex items-center gap-2 text-xs cursor-pointer">
                     <input
@@ -299,14 +367,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setImportPreview(null)}
-                    className="px-3 py-1.5 rounded text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    className="px-3 py-1.5 rounded text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={executeImport}
-                    className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                    className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium focus-ring"
                   >
                     Confirm Import
                   </button>
@@ -362,13 +430,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Are you absolutely sure?
                 </div>
                 <div className="text-neutral-600 dark:text-neutral-400 mt-1">
-                  This will permanently delete all local items and workspaces from IndexedDB.
+                  This will permanently erase all local notes and workspaces from IndexedDB.
                 </div>
                 <div className="flex justify-end gap-2 mt-3">
                   <button
                     type="button"
                     onClick={() => setShowResetConfirm(false)}
-                    className="px-2.5 py-1 rounded text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    className="px-2.5 py-1 rounded text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
                   >
                     Cancel
                   </button>
@@ -379,7 +447,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       setShowResetConfirm(false);
                       onClose();
                     }}
-                    className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-medium"
+                    className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-medium focus-ring"
                   >
                     Yes, Delete Everything
                   </button>
@@ -389,7 +457,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowResetConfirm(true)}
-                className="text-xs text-red-500 hover:text-red-600 dark:text-red-400 flex items-center gap-1.5"
+                className="text-xs text-red-500 hover:text-red-600 dark:text-red-400 flex items-center gap-1.5 focus-ring rounded"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Clear all data and reset</span>

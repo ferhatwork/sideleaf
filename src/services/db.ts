@@ -14,39 +14,47 @@ function openDatabase(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
 
   dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
 
-      if (!db.objectStoreNames.contains('items')) {
-        const itemStore = db.createObjectStore('items', { keyPath: 'id' });
-        itemStore.createIndex('workspaceId', 'workspaceId', { unique: false });
-        itemStore.createIndex('status', 'status', { unique: false });
-        itemStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-        itemStore.createIndex('type', 'type', { unique: false });
-      }
+        if (!db.objectStoreNames.contains('items')) {
+          const itemStore = db.createObjectStore('items', { keyPath: 'id' });
+          itemStore.createIndex('workspaceId', 'workspaceId', { unique: false });
+          itemStore.createIndex('status', 'status', { unique: false });
+          itemStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+          itemStore.createIndex('type', 'type', { unique: false });
+        }
 
-      if (!db.objectStoreNames.contains('workspaces')) {
-        const wsStore = db.createObjectStore('workspaces', { keyPath: 'id' });
-        wsStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
+        if (!db.objectStoreNames.contains('workspaces')) {
+          const wsStore = db.createObjectStore('workspaces', { keyPath: 'id' });
+          wsStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+        }
 
-      if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'key' });
-      }
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings', { keyPath: 'key' });
+        }
 
-      if (!db.objectStoreNames.contains('activity')) {
-        const actStore = db.createObjectStore('activity', { keyPath: 'id' });
-        actStore.createIndex('timestamp', 'timestamp', { unique: false });
-      }
-    };
+        if (!db.objectStoreNames.contains('activity')) {
+          const actStore = db.createObjectStore('activity', { keyPath: 'id' });
+          actStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+      };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => {
+        isIdbSupported = false;
+        reject(request.error);
+      };
+      request.onblocked = () => {
+        console.warn('Workpad IndexedDB blocked by another open connection');
+      };
+    } catch (err) {
       isIdbSupported = false;
-      reject(request.error);
-    };
+      reject(err);
+    }
   });
 
   return dbPromise;
@@ -58,46 +66,66 @@ const LS_WORKSPACES = 'workpad_ls_workspaces';
 const LS_SETTINGS = 'workpad_ls_settings';
 const LS_ACTIVITY = 'workpad_ls_activity';
 
+function safeLsGet<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function safeLsSet(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error('Workpad storage quota exceeded or restricted', err);
+  }
+}
+
 export const db = {
   async getAllItems(): Promise<Item[]> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('items', 'readonly');
         const store = tx.objectStore('items');
         const req = store.getAll();
         req.onsuccess = () => resolve(req.result || []);
         req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
       });
     } catch {
-      const raw = localStorage.getItem(LS_ITEMS);
-      return raw ? JSON.parse(raw) : [];
+      return safeLsGet<Item[]>(LS_ITEMS, []);
     }
   },
 
   async saveItem(item: Item): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('items', 'readwrite');
         const store = tx.objectStore('items');
-        const req = store.put(item);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.put(item);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
       });
     } catch {
-      const items = await this.getAllItems();
+      const items = safeLsGet<Item[]>(LS_ITEMS, []);
       const idx = items.findIndex((i) => i.id === item.id);
       if (idx >= 0) items[idx] = item;
-      else items.push(item);
-      localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+      else items.unshift(item);
+      safeLsSet(LS_ITEMS, items);
     }
   },
 
   async saveItems(items: Item[]): Promise<void> {
+    if (items.length === 0) return;
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('items', 'readwrite');
         const store = tx.objectStore('items');
         for (const item of items) {
@@ -105,82 +133,112 @@ export const db = {
         }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
       });
     } catch {
-      localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+      const existing = safeLsGet<Item[]>(LS_ITEMS, []);
+      const map = new Map(existing.map((i) => [i.id, i]));
+      for (const it of items) {
+        map.set(it.id, it);
+      }
+      safeLsSet(LS_ITEMS, Array.from(map.values()));
     }
   },
 
   async deleteItem(id: string): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('items', 'readwrite');
         const store = tx.objectStore('items');
-        const req = store.delete(id);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
       });
     } catch {
-      const items = (await this.getAllItems()).filter((i) => i.id !== id);
-      localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+      const items = safeLsGet<Item[]>(LS_ITEMS, []).filter((i) => i.id !== id);
+      safeLsSet(LS_ITEMS, items);
+    }
+  },
+
+  async deleteItems(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('items', 'readwrite');
+        const store = tx.objectStore('items');
+        for (const id of ids) {
+          store.delete(id);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+      });
+    } catch {
+      const items = safeLsGet<Item[]>(LS_ITEMS, []).filter((i) => !idSet.has(i.id));
+      safeLsSet(LS_ITEMS, items);
     }
   },
 
   async clearAllItems(): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('items', 'readwrite');
         const store = tx.objectStore('items');
-        const req = store.clear();
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
       });
     } catch {
-      localStorage.removeItem(LS_ITEMS);
+      safeLsSet(LS_ITEMS, []);
     }
   },
 
   async getAllWorkspaces(): Promise<Workspace[]> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('workspaces', 'readonly');
         const store = tx.objectStore('workspaces');
         const req = store.getAll();
         req.onsuccess = () => resolve(req.result || []);
         req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
       });
     } catch {
-      const raw = localStorage.getItem(LS_WORKSPACES);
-      return raw ? JSON.parse(raw) : [];
+      return safeLsGet<Workspace[]>(LS_WORKSPACES, []);
     }
   },
 
   async saveWorkspace(ws: Workspace): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('workspaces', 'readwrite');
         const store = tx.objectStore('workspaces');
-        const req = store.put(ws);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.put(ws);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
       });
     } catch {
-      const list = await this.getAllWorkspaces();
+      const list = safeLsGet<Workspace[]>(LS_WORKSPACES, []);
       const idx = list.findIndex((w) => w.id === ws.id);
       if (idx >= 0) list[idx] = ws;
       else list.push(ws);
-      localStorage.setItem(LS_WORKSPACES, JSON.stringify(list));
+      safeLsSet(LS_WORKSPACES, list);
     }
   },
 
   async saveWorkspaces(workspaces: Workspace[]): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('workspaces', 'readwrite');
         const store = tx.objectStore('workspaces');
         for (const ws of workspaces) {
@@ -188,63 +246,66 @@ export const db = {
         }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
       });
     } catch {
-      localStorage.setItem(LS_WORKSPACES, JSON.stringify(workspaces));
+      safeLsSet(LS_WORKSPACES, workspaces);
     }
   },
 
   async deleteWorkspace(id: string): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('workspaces', 'readwrite');
         const store = tx.objectStore('workspaces');
-        const req = store.delete(id);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
       });
     } catch {
-      const list = (await this.getAllWorkspaces()).filter((w) => w.id !== id);
-      localStorage.setItem(LS_WORKSPACES, JSON.stringify(list));
+      const list = safeLsGet<Workspace[]>(LS_WORKSPACES, []).filter((w) => w.id !== id);
+      safeLsSet(LS_WORKSPACES, list);
     }
   },
 
   async getSettings(): Promise<UserSettings | null> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('settings', 'readonly');
         const store = tx.objectStore('settings');
         const req = store.get('user_settings');
         req.onsuccess = () => resolve(req.result ? req.result.value : null);
         req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
       });
     } catch {
-      const raw = localStorage.getItem(LS_SETTINGS);
-      return raw ? JSON.parse(raw) : null;
+      return safeLsGet<UserSettings | null>(LS_SETTINGS, null);
     }
   },
 
   async saveSettings(settings: UserSettings): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('settings', 'readwrite');
         const store = tx.objectStore('settings');
-        const req = store.put({ key: 'user_settings', value: settings });
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.put({ key: 'user_settings', value: settings });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
       });
     } catch {
-      localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
+      safeLsSet(LS_SETTINGS, settings);
     }
   },
 
   async getRecentActivity(limit = 100): Promise<ActivityLog[]> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('activity', 'readonly');
         const store = tx.objectStore('activity');
         const index = store.index('timestamp');
@@ -260,10 +321,10 @@ export const db = {
           }
         };
         req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
       });
     } catch {
-      const raw = localStorage.getItem(LS_ACTIVITY);
-      const list: ActivityLog[] = raw ? JSON.parse(raw) : [];
+      const list = safeLsGet<ActivityLog[]>(LS_ACTIVITY, []);
       return list.slice(0, limit);
     }
   },
@@ -271,36 +332,38 @@ export const db = {
   async logActivity(entry: ActivityLog): Promise<void> {
     try {
       const idb = await openDatabase();
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         const tx = idb.transaction('activity', 'readwrite');
         const store = tx.objectStore('activity');
-        const req = store.put(entry);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.put(entry);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
       });
     } catch {
-      const raw = localStorage.getItem(LS_ACTIVITY);
-      const list: ActivityLog[] = raw ? JSON.parse(raw) : [];
+      const list = safeLsGet<ActivityLog[]>(LS_ACTIVITY, []);
       list.unshift(entry);
       if (list.length > 200) list.length = 200;
-      localStorage.setItem(LS_ACTIVITY, JSON.stringify(list));
+      safeLsSet(LS_ACTIVITY, list);
     }
   },
 
   async clearAllData(): Promise<void> {
     try {
       const idb = await openDatabase();
-      const tx = idb.transaction(['items', 'workspaces', 'activity'], 'readwrite');
-      tx.objectStore('items').clear();
-      tx.objectStore('workspaces').clear();
-      tx.objectStore('activity').clear();
-      await new Promise((resolve) => {
-        tx.oncomplete = () => resolve(true);
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction(['items', 'workspaces', 'activity'], 'readwrite');
+        tx.objectStore('items').clear();
+        tx.objectStore('workspaces').clear();
+        tx.objectStore('activity').clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
       });
     } catch {
-      localStorage.removeItem(LS_ITEMS);
-      localStorage.removeItem(LS_WORKSPACES);
-      localStorage.removeItem(LS_ACTIVITY);
+      safeLsSet(LS_ITEMS, []);
+      safeLsSet(LS_WORKSPACES, []);
+      safeLsSet(LS_ACTIVITY, []);
     }
   }
 };

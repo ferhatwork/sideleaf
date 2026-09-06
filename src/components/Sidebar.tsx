@@ -90,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="space-y-0.5">
             <button
               onClick={() => handleNav({ type: 'today' })}
-              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'today'
                   ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
@@ -105,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => handleNav({ type: 'scratch' })}
-              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'scratch'
                   ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
@@ -120,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => handleNav({ type: 'recent' })}
-              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'recent'
                   ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
@@ -142,8 +142,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
               <button
                 onClick={onOpenNewWorkspace}
-                className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+                className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors focus-ring"
                 title="Create Workspace"
+                aria-label="Create new workspace"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -152,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="space-y-0.5 mt-1">
               {workspaces.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] text-neutral-400 italic">
-                  No workspaces yet.
+                  Create a workspace when a project deserves one.
                 </div>
               ) : (
                 workspaces.map((ws) => {
@@ -165,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div key={ws.id} className="relative group">
                       <button
                         onClick={() => handleNav({ type: 'workspace', workspaceId: ws.id })}
-                        className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+                        className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                           isActive
                             ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
                             : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
@@ -178,19 +179,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           />
                           <span className="truncate">{ws.name}</span>
                         </div>
-                        <span className="text-[11px] font-mono text-neutral-400 group-hover:opacity-0 transition-opacity">
+                        <span className="text-[11px] font-mono text-neutral-400 group-hover:opacity-0 group-focus-within:opacity-0 transition-opacity">
                           {count}
                         </span>
                       </button>
 
-                      {/* Options menu trigger on hover */}
+                      {/* Options menu trigger (visible on hover AND focus) */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveMenuWsId(isMenuOpen ? null : ws.id);
                         }}
-                        className="absolute right-2 top-1.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-opacity"
-                        aria-label="Workspace actions"
+                        className="absolute right-2 top-1.5 p-0.5 rounded opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-opacity focus-ring"
+                        aria-label={`Options for workspace ${ws.name}`}
                       >
                         <MoreHorizontal className="w-3.5 h-3.5" />
                       </button>
@@ -231,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="pt-2 border-t border-neutral-200/50 dark:border-neutral-800/60 space-y-0.5">
             <button
               onClick={() => handleNav({ type: 'archive' })}
-              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'archive'
                   ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
@@ -246,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={() => handleNav({ type: 'trash' })}
-              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+              className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors focus-ring ${
                 activeView.type === 'trash'
                   ? 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-white'
                   : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/40'
@@ -265,7 +266,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-3 border-t border-neutral-200/80 dark:border-workpad-dark-border">
           <button
             onClick={onOpenSettings}
-            className="w-full px-3 py-2 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 flex items-center gap-2.5 transition-colors"
+            className="w-full px-3 py-2 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 flex items-center gap-2.5 transition-colors focus-ring"
           >
             <Settings className="w-4 h-4 text-neutral-400" />
             <span>Settings & Data</span>
@@ -275,4 +276,3 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
-

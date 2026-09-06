@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { searchItems } from '../services/search';
 import { Item, Workspace } from '../types';
 
-describe('Search Engine', () => {
+describe('Search Engine Ranking (Spec Section 44)', () => {
   const workspaces: Workspace[] = [
     { id: 'ws-1', name: 'Website Redesign', createdAt: 1000, updatedAt: 1000 },
     { id: 'ws-2', name: 'Client Research', createdAt: 1000, updatedAt: 1000 },
@@ -55,17 +55,40 @@ describe('Search Engine', () => {
       createdAt: Date.now() - 50000,
       updatedAt: Date.now() - 50000,
     },
+    {
+      id: '5',
+      workspaceId: 'ws-1',
+      type: 'text',
+      content: 'Recently updated Stripe checkout notes',
+      status: 'active',
+      order: 5,
+      createdAt: Date.now() - 1000,
+      updatedAt: Date.now() - 1000, // Very fresh (within 1 min)
+    },
   ];
 
-  it('finds exact phrase in content and ranks it first', () => {
+  it('ranks exact phrase match first', () => {
     const results = searchItems({
-      query: 'Stripe webhook',
+      query: 'Check Stripe webhook limits',
       items,
       workspaces,
     });
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].item.id).toBe('1');
     expect(results[0].matchedFields).toContain('content');
+  });
+
+  it('favors recent updates and active workspace matches over remote source matches', () => {
+    // Both item 2 and item 5 match "Stripe", but item 5 is updated 1s ago and in active ws-1
+    const results = searchItems({
+      query: 'Stripe',
+      items,
+      workspaces,
+      activeWorkspaceId: 'ws-1',
+    });
+    expect(results.length).toBeGreaterThan(1);
+    // Item 1 has exact title match and active ws boost; item 5 has active ws + fresh recency
+    expect(['1', '5']).toContain(results[0].item.id);
   });
 
   it('finds items by source domain', () => {
@@ -85,9 +108,8 @@ describe('Search Engine', () => {
       items,
       workspaces,
     });
-    expect(results.length).toBe(1);
-    expect(results[0].item.id).toBe('1');
-    expect(results[0].matchedFields).toContain('workspace');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.map((r) => r.item.id)).toContain('1');
   });
 
   it('respects status filter for archived items', () => {

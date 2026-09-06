@@ -44,7 +44,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(item.content);
   const [showMenu, setShowMenu] = useState(false);
-  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +54,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       textareaRef.current.focus();
-      // Auto adjust height
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
@@ -66,36 +64,47 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setShowMenu(false);
-        setShowWorkspaceMenu(false);
       }
     };
-    if (showMenu || showWorkspaceMenu) {
+    if (showMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showMenu, showWorkspaceMenu]);
+  }, [showMenu]);
 
   const handleSave = async () => {
     setIsEditing(false);
-    if (content.trim() !== item.content) {
-      await onUpdate(item.id, { content: content.trim() });
+    const trimmed = content.trim();
+    if (trimmed !== item.content) {
+      await onUpdate(item.id, { content: trimmed });
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      // If ctrl+enter in item, toggle task or convert
-      if (item.type !== 'checklist') {
-        onConvertType(item.id, 'checklist');
-      } else {
-        onToggleCheck(item.id);
+      const trimmed = content.trim();
+      setIsEditing(false);
+      if (trimmed !== item.content) {
+        await onUpdate(item.id, { content: trimmed });
       }
-      handleSave();
+      if (item.type !== 'checklist') {
+        await onConvertType(item.id, 'checklist');
+      } else {
+        await onToggleCheck(item.id);
+      }
     } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
       setContent(item.content);
       setIsEditing(false);
     }
+  };
+
+  // Safe external URL check (prevents javascript: XSS)
+  const isSafeUrl = (url?: string): boolean => {
+    if (!url) return false;
+    return /^https?:\/\//i.test(url.trim());
   };
 
   const currentWorkspace = item.workspaceId
@@ -108,7 +117,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         <div className="flex-grow border-t border-neutral-200 dark:border-neutral-800" />
         <button
           onClick={() => onDelete(item.id)}
-          className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-red-500 px-2 text-xs"
+          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 text-neutral-400 hover:text-red-500 px-2 text-xs rounded focus-ring"
+          aria-label="Remove divider"
           title="Remove divider"
         >
           ✕
@@ -116,6 +126,26 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       </div>
     );
   }
+
+  // Render text with hashtags highlighted
+  const renderFormattedText = (text: string) => {
+    if (!text) return <span className="text-neutral-400 italic">Empty note...</span>;
+
+    const parts = text.split(/(#[a-zA-Z0-9_-]+)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('#')) {
+        return (
+          <span
+            key={index}
+            className="text-blue-600 dark:text-blue-400 font-mono text-[13px] hover:underline"
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
 
   return (
     <div
@@ -164,8 +194,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             />
           ) : (
             <div
+              tabIndex={0}
+              role="button"
+              aria-label={item.content ? `Edit note: ${item.content.slice(0, 50)}` : 'Edit note'}
               onClick={() => setIsEditing(true)}
-              className={`text-sm leading-relaxed cursor-text break-words select-text ${
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setIsEditing(true);
+                }
+              }}
+              className={`text-sm leading-relaxed cursor-text break-words select-text rounded focus-ring ${
                 item.checked
                   ? 'line-through text-neutral-400 dark:text-neutral-500'
                   : item.type === 'quote'
@@ -173,12 +212,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   : 'text-neutral-900 dark:text-neutral-100'
               }`}
             >
-              {item.content || <span className="text-neutral-400 italic">Empty item...</span>}
+              {renderFormattedText(item.content)}
             </div>
           )}
 
-          {/* Source badge if attached */}
-          {item.source?.url && (
+          {/* Source badge if attached and safe */}
+          {item.source?.url && isSafeUrl(item.source.url) && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-mono text-[11px]">
                 <Link2 className="w-3 h-3" />
@@ -188,7 +227,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 href={item.source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-blue-500 inline-flex items-center gap-0.5 transition-colors"
+                className="hover:text-blue-500 inline-flex items-center gap-0.5 transition-colors focus-ring rounded"
                 title={item.source.url}
               >
                 <span>Open</span>
@@ -226,13 +265,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               )}
             </div>
 
-            {/* Quick action buttons on hover */}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+            {/* Action buttons (Visible on hover AND on keyboard focus) */}
+            <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1">
               {item.type !== 'checklist' && (
                 <button
                   onClick={() => onConvertType(item.id, 'checklist')}
-                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 focus-ring"
                   title="Turn into task"
+                  aria-label="Turn into task"
                 >
                   <ListTodo className="w-3.5 h-3.5" />
                 </button>
@@ -241,8 +281,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-                  aria-label="Item options"
+                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 focus-ring"
+                  aria-label="Item options menu"
+                  title="Item options"
                 >
                   <MoreVertical className="w-3.5 h-3.5" />
                 </button>
@@ -339,6 +380,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                           setShowMenu(false);
                         }}
                         className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 text-neutral-600 dark:text-neutral-300"
+                        title="Keep, but get it out of the way"
                       >
                         <Archive className="w-3.5 h-3.5" /> Archive
                       </button>

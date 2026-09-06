@@ -3,7 +3,7 @@ import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput } from './QuickInput';
 import { exportWorkspaceToMarkdown, downloadMarkdownFile } from '../services/exportImport';
-import { Download, Edit2, Filter, Trash2 } from 'lucide-react';
+import { Download, Edit2, Filter, Trash2, ChevronDown } from 'lucide-react';
 
 interface WorkspaceViewProps {
   workspace: Workspace;
@@ -36,6 +36,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [visibleCount, setVisibleCount] = useState<number>(50);
 
   const workspaceItems = useMemo(
     () =>
@@ -44,6 +45,11 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
         .filter((i) => (filterType === 'all' ? true : i.type === filterType))
         .sort((a, b) => b.updatedAt - a.updatedAt),
     [items, workspace.id, filterType]
+  );
+
+  const displayedItems = useMemo(
+    () => workspaceItems.slice(0, visibleCount),
+    [workspaceItems, visibleCount]
   );
 
   const handleExportMarkdown = () => {
@@ -79,23 +85,26 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
           <div className="flex items-center gap-1">
             <button
               onClick={handleExportMarkdown}
-              className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs flex items-center gap-1.5"
+              className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs flex items-center gap-1.5 focus-ring"
               title="Export workspace to Markdown (.md)"
+              aria-label="Export workspace to Markdown"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Export .md</span>
             </button>
             <button
               onClick={() => onEditWorkspace(workspace)}
-              className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
               title="Edit workspace"
+              aria-label="Edit workspace"
             >
               <Edit2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="p-1.5 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
               title="Delete workspace"
+              aria-label="Delete workspace"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -104,11 +113,11 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
 
         {showDeleteConfirm && (
           <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500">
-            <span>Delete workspace? Existing notes will be safely kept in Scratch.</span>
+            <span>Delete workspace? Notes will be safely kept in Scratch.</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                className="px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
               >
                 Cancel
               </button>
@@ -117,7 +126,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
                   onDeleteWorkspace(workspace.id);
                   setShowDeleteConfirm(false);
                 }}
-                className="px-2.5 py-1 rounded bg-red-600 text-white font-medium hover:bg-red-500"
+                className="px-2.5 py-1 rounded bg-red-600 text-white font-medium hover:bg-red-500 focus-ring"
               >
                 Delete
               </button>
@@ -130,7 +139,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
       <QuickInput
         onAdd={onAdd}
         defaultWorkspaceId={workspace.id}
-        placeholder={`Add note to ${workspace.name}... (Enter to save)`}
+        placeholder={`Add note to ${workspace.name}... (Enter to save, Ctrl+Enter for task)`}
       />
 
       {/* Filter Tabs */}
@@ -140,8 +149,11 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
           {['all', 'text', 'checklist', 'quote', 'link'].map((t) => (
             <button
               key={t}
-              onClick={() => setFilterType(t)}
-              className={`px-2 py-0.5 rounded capitalize transition-colors ${
+              onClick={() => {
+                setFilterType(t);
+                setVisibleCount(50);
+              }}
+              className={`px-2 py-0.5 rounded capitalize transition-colors focus-ring ${
                 filterType === t
                   ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
                   : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
@@ -169,7 +181,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
         </div>
       ) : (
         <div className="space-y-2">
-          {workspaceItems.map((item) => (
+          {displayedItems.map((item) => (
             <ItemCard
               key={item.id}
               item={item}
@@ -183,6 +195,19 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
               showWorkspaceBadge={false}
             />
           ))}
+
+          {/* Large dataset pagination (Spec Section 61) */}
+          {workspaceItems.length > visibleCount && (
+            <div className="pt-4 text-center">
+              <button
+                onClick={() => setVisibleCount((prev) => prev + 50)}
+                className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 text-xs text-neutral-600 dark:text-neutral-400 inline-flex items-center gap-1.5 focus-ring"
+              >
+                <span>Show more ({workspaceItems.length - visibleCount} remaining)</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

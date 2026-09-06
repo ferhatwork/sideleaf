@@ -50,6 +50,7 @@ export const AppShell: React.FC = () => {
     restoreItem,
     softDeleteItem,
     permanentlyDeleteItem,
+    permanentlyDeleteItems,
 
     // Workspaces
     createWorkspace,
@@ -70,13 +71,22 @@ export const AppShell: React.FC = () => {
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Global Keyboard Shortcuts
+  // Global Keyboard Shortcuts (Spec Section 9 & 13)
   useEffect(() => {
     const unregister = registerGlobalShortcuts([
       {
         key: 'space',
         ctrlOrCmd: true,
         description: 'Quick Capture',
+        allowInInputs: true,
+        action: () => setIsQuickCaptureOpen(true),
+      },
+      // Mac fallback for Spotlight collision (Spec Section 9.1)
+      {
+        key: 'space',
+        ctrlOrCmd: true,
+        shift: true,
+        description: 'Quick Capture Fallback',
         allowInInputs: true,
         action: () => setIsQuickCaptureOpen(true),
       },
@@ -97,6 +107,14 @@ export const AppShell: React.FC = () => {
           const dateStr = new Date().toISOString().split('T')[0];
           downloadJsonFile(`workpad-backup-${dateStr}.workpad`, data);
         },
+      },
+      // Global Undo (Spec Section 13)
+      {
+        key: 'z',
+        ctrlOrCmd: true,
+        description: 'Undo last action',
+        allowInInputs: false,
+        action: () => performUndo(),
       },
       {
         key: '?',
@@ -121,7 +139,18 @@ export const AppShell: React.FC = () => {
     ]);
 
     return () => unregister();
-  }, [workspaces, items, settings, activity, setIsQuickCaptureOpen, setIsSearchOpen, setIsSettingsOpen, setIsShortcutsOpen, setIsWorkspaceModalOpen]);
+  }, [
+    workspaces,
+    items,
+    settings,
+    activity,
+    performUndo,
+    setIsQuickCaptureOpen,
+    setIsSearchOpen,
+    setIsSettingsOpen,
+    setIsShortcutsOpen,
+    setIsWorkspaceModalOpen,
+  ]);
 
   // Counts
   const counts = useMemo(() => {
@@ -157,10 +186,8 @@ export const AppShell: React.FC = () => {
   };
 
   const handleEmptyTrash = async () => {
-    const trashItems = items.filter((i) => i.status === 'deleted');
-    for (const it of trashItems) {
-      await permanentlyDeleteItem(it.id);
-    }
+    const trashIds = items.filter((i) => i.status === 'deleted').map((i) => i.id);
+    await permanentlyDeleteItems(trashIds);
   };
 
   if (isLoading) {
@@ -237,6 +264,8 @@ export const AppShell: React.FC = () => {
                 onArchive={archiveItem}
                 onDelete={softDeleteItem}
                 onNavigateToScratch={() => setActiveView({ type: 'scratch' })}
+                onNavigateToRecent={() => setActiveView({ type: 'recent' })}
+                onNavigateToWorkspace={(id) => setActiveView({ type: 'workspace', workspaceId: id })}
               />
             )}
 
@@ -375,3 +404,4 @@ export const AppShell: React.FC = () => {
     </div>
   );
 };
+

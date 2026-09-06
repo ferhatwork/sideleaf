@@ -23,20 +23,24 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
       setQuery('');
       setSelectedIndex(0);
       setTimeout(() => {
         inputRef.current?.focus();
-      }, 50);
+      }, 30);
+    } else {
+      previousFocusRef.current?.focus();
     }
   }, [isOpen]);
 
   const searchResults = useMemo(() => {
     if (!query.trim()) {
-      // Return 8 most recent active items when query is empty
       return items
         .filter((i) => i.status === 'active')
         .slice(0, 8)
@@ -64,6 +68,26 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   if (!isOpen) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Focus trapping
+    if (e.key === 'Tab') {
+      if (!modalRef.current) return;
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+      return;
+    }
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex((prev) => (prev + 1) % Math.max(1, searchResults.length));
@@ -88,11 +112,22 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-100">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100"
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="search-dialog-title"
+    >
       <div
+        ref={modalRef}
         className="w-full max-w-2xl rounded-xl border border-neutral-200 dark:border-workpad-dark-border bg-white dark:bg-workpad-dark-surface shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
+        <span id="search-dialog-title" className="sr-only">
+          Search your work
+        </span>
+
         {/* Search header */}
         <div className="flex items-center px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 gap-3">
           <Search className="w-5 h-5 text-neutral-400" />
@@ -101,14 +136,15 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search notes, tasks, workspaces, links... (Ctrl+K)"
+            placeholder="Search your work... (Ctrl+K)"
+            aria-label="Search your work"
             className="flex-1 bg-transparent text-sm md:text-base text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1"
+              aria-label="Clear search query"
+              className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
             >
               <X className="w-4 h-4" />
             </button>

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput } from './QuickInput';
-import { FileEdit, Filter } from 'lucide-react';
+import { FileEdit, Filter, ChevronDown } from 'lucide-react';
 
 interface ScratchViewProps {
   items: Item[];
@@ -28,6 +28,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
   onDelete,
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
+  const [visibleCount, setVisibleCount] = useState<number>(50);
 
   // Scratch items: unassigned (workspaceId === null) and active
   const scratchItems = useMemo(
@@ -37,6 +38,11 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
         .filter((i) => (filterType === 'all' ? true : i.type === filterType))
         .sort((a, b) => b.updatedAt - a.updatedAt),
     [items, filterType]
+  );
+
+  const displayedItems = useMemo(
+    () => scratchItems.slice(0, visibleCount),
+    [scratchItems, visibleCount]
   );
 
   return (
@@ -49,7 +55,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
             Scratch Surface
           </h2>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Quick notes, ambiguous thoughts, temporary links. Organize when ready or keep here.
+            Quick captures and unorganized thoughts. Organize when ready or keep here.
           </p>
         </div>
 
@@ -59,8 +65,11 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
           {['all', 'text', 'checklist', 'quote', 'link'].map((t) => (
             <button
               key={t}
-              onClick={() => setFilterType(t)}
-              className={`px-2 py-0.5 rounded capitalize transition-colors ${
+              onClick={() => {
+                setFilterType(t);
+                setVisibleCount(50);
+              }}
+              className={`px-2 py-0.5 rounded capitalize transition-colors focus-ring ${
                 filterType === t
                   ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
                   : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300'
@@ -76,7 +85,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
       <QuickInput
         onAdd={onAdd}
         defaultWorkspaceId={null}
-        placeholder="Capture to scratch... (Enter to save)"
+        placeholder="Capture to scratch... (Enter to save, Ctrl+Enter for task)"
       />
 
       {/* Items list */}
@@ -86,12 +95,12 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
             Scratch is empty.
           </p>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-            Capture anything. Sort it later.
+            Capture anything. Organize later.
           </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {scratchItems.map((item) => (
+          {displayedItems.map((item) => (
             <ItemCard
               key={item.id}
               item={item}
@@ -105,6 +114,19 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
               showWorkspaceBadge={false}
             />
           ))}
+
+          {/* Large dataset pagination (Spec Section 61) */}
+          {scratchItems.length > visibleCount && (
+            <div className="pt-4 text-center">
+              <button
+                onClick={() => setVisibleCount((prev) => prev + 50)}
+                className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 text-xs text-neutral-600 dark:text-neutral-400 inline-flex items-center gap-1.5 focus-ring"
+              >
+                <span>Show more ({scratchItems.length - visibleCount} remaining)</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

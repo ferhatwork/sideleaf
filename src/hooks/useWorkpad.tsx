@@ -16,10 +16,14 @@ interface ToastMessage {
   undoAction?: UndoAction;
 }
 
+interface ExtendedUserSettings extends UserSettings {
+  hasInitialized?: boolean;
+}
+
 interface WorkpadContextType {
   items: Item[];
   workspaces: Workspace[];
-  settings: UserSettings;
+  settings: ExtendedUserSettings;
   activity: ActivityLog[];
   activeView: ActiveView;
   setActiveView: (view: ActiveView) => void;
@@ -53,6 +57,7 @@ interface WorkpadContextType {
   restoreItem: (id: string) => Promise<void>;
   softDeleteItem: (id: string) => Promise<void>;
   permanentlyDeleteItem: (id: string) => Promise<void>;
+  permanentlyDeleteItems: (ids: string[]) => Promise<void>;
 
   // Workspaces
   createWorkspace: (name: string, color?: string, description?: string) => Promise<Workspace>;
@@ -60,7 +65,7 @@ interface WorkpadContextType {
   deleteWorkspace: (id: string) => Promise<void>;
 
   // Settings & Data
-  updateSettings: (updates: Partial<UserSettings>) => Promise<void>;
+  updateSettings: (updates: Partial<ExtendedUserSettings>) => Promise<void>;
   importWorkpadData: (
     importedItems: Item[],
     importedWorkspaces: Workspace[],
@@ -76,12 +81,13 @@ interface WorkpadContextType {
   dismissToast: () => void;
 }
 
-const defaultSettings: UserSettings = {
+const defaultSettings: ExtendedUserSettings = {
   theme: 'dark',
   quickCaptureShortcut: 'Ctrl+Space',
   searchShortcut: 'Ctrl+K',
   autoSaveIntervalMs: 200,
   defaultView: 'today',
+  hasInitialized: false,
 };
 
 const WorkpadContext = createContext<WorkpadContextType | null>(null);
@@ -89,7 +95,7 @@ const WorkpadContext = createContext<WorkpadContextType | null>(null);
 export function WorkpadProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [settings, setSettings] = useState<UserSettings>(defaultSettings);
+  const [settings, setSettings] = useState<ExtendedUserSettings>(defaultSettings);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [activeView, setActiveView] = useState<ActiveView>({ type: 'today' });
   const [isLoading, setIsLoading] = useState(true);
@@ -134,19 +140,18 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         const [loadedItems, loadedWorkspaces, loadedSettings, loadedActivity] = await Promise.all([
           db.getAllItems(),
           db.getAllWorkspaces(),
-          db.getSettings(),
+          db.getSettings() as Promise<ExtendedUserSettings | null>,
           db.getRecentActivity(100),
         ]);
 
         if (!isMounted) return;
 
-        // Apply theme early
         const currentSettings = loadedSettings || defaultSettings;
         setSettings(currentSettings);
         applyTheme(currentSettings.theme);
 
-        if (loadedItems.length === 0 && loadedWorkspaces.length === 0) {
-          // Initialize with calm welcoming starter data (Spec Section 50)
+        // Only seed starter data on the very first visit (when hasInitialized is not true)
+        if (!currentSettings.hasInitialized && loadedItems.length === 0 && loadedWorkspaces.length === 0) {
           const starterWorkspace: Workspace = {
             id: generateId('ws'),
             name: 'Website Redesign',
@@ -195,14 +200,16 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
             },
           ];
 
+          const updatedSettings = { ...currentSettings, hasInitialized: true };
           await Promise.all([
             db.saveWorkspaces([starterWorkspace]),
             db.saveItems(starterItems),
-            db.saveSettings(currentSettings),
+            db.saveSettings(updatedSettings),
           ]);
 
           setWorkspaces([starterWorkspace]);
           setItems(starterItems);
+          setSettings(updatedSettings);
         } else {
           setItems(loadedItems);
           setWorkspaces(loadedWorkspaces);
@@ -246,17 +253,29 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       const content = params.content.trim();
       let determinedType = params.type || 'text';
 
-      // Auto detect URLs if type was text and URL is present
+      // Auto-detect divider if content is "---"
+      if (content === '---' || content === '***') {
+        determinedType = 'divider';
+      }
+
+      // Auto-detect quote if starts with > or quotes
+      if (!params.type && (content.startsWith('>') || /^["“].*["”]$/.test(content))) {
+        determinedType = 'quote';
+      }
+
+      // Auto-detect URLs if present
       const urls = extractUrls(content);
       let source = undefined;
-      if (params.sourceUrl || (urls.length > 0 && determinedType === 'text')) {
+      if (params.sourceUrl || urls.length > 0) {
         const targetUrl = params.sourceUrl || urls[0];
         source = {
           url: targetUrl,
           domain: extractDomain(targetUrl) || undefined,
           capturedAt: Date.now(),
         };
-        if (!params.type && urls.length === 1 && content === urls[0]) {
+
+        // If content is just the URL and type wasn't explicitly set to checklist/quote
+        if ((!params.type || params.type === 'text') && urls.length === 1 && content === urls[0]) {
           determinedType = 'link';
         }
       }
@@ -274,13 +293,9 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         source,
       };
 
-      // Optimistic update
       setItems((prev) => [newItem, ...prev]);
-
-      // Persistence
       await db.saveItem(newItem);
 
-      // Activity log
       const act: ActivityLog = {
         id: generateId('act'),
         itemId: newItem.id,
@@ -297,198 +312,215 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // Update Item
+  // Update Item (Uses functional update to prevent stale closure clobbering)
   const updateItem = useCallback(async (id: string, updates: Partial<Item>) => {
+    let itemToPersist: Item | null = null;
     setItems((prev) =>
       prev.map((it) => {
         if (it.id !== id) return it;
-        return { ...it, ...updates, updatedAt: Date.now() };
+        const merged = { ...it, ...updates, updatedAt: Date.now() };
+        itemToPersist = merged;
+        return merged;
       })
     );
 
-    const target = items.find((i) => i.id === id);
-    if (target) {
-      const updated = { ...target, ...updates, updatedAt: Date.now() };
-      await db.saveItem(updated);
+    if (itemToPersist) {
+      await db.saveItem(itemToPersist);
     }
-  }, [items]);
+  }, []);
 
-  // Toggle checklist
+  // Toggle checklist (Uses functional update)
   const toggleItemCheck = useCallback(
     async (id: string) => {
-      const target = items.find((i) => i.id === id);
-      if (!target) return;
-      const newChecked = !target.checked;
+      let toggledItem: Item | null = null;
+      let newCheckedState = false;
 
       setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, checked: newChecked, updatedAt: Date.now() } : it))
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          newCheckedState = !it.checked;
+          toggledItem = { ...it, checked: newCheckedState, updatedAt: Date.now() };
+          return toggledItem;
+        })
       );
 
-      const updated = { ...target, checked: newChecked, updatedAt: Date.now() };
-      await db.saveItem(updated);
+      if (toggledItem) {
+        await db.saveItem(toggledItem);
 
-      const act: ActivityLog = {
-        id: generateId('act'),
-        itemId: target.id,
-        itemTextPreview: target.content.slice(0, 40),
-        action: 'toggle_task',
-        details: newChecked ? 'Marked task completed' : 'Marked task incomplete',
-        timestamp: Date.now(),
-      };
-      setActivity((prev) => [act, ...prev.slice(0, 99)]);
-      db.logActivity(act).catch(() => {});
+        const target = toggledItem as Item;
+        const act: ActivityLog = {
+          id: generateId('act'),
+          itemId: target.id,
+          itemTextPreview: target.content.slice(0, 40),
+          action: 'toggle_task',
+          details: newCheckedState ? 'Marked task completed' : 'Marked task incomplete',
+          timestamp: Date.now(),
+        };
+        setActivity((prev) => [act, ...prev.slice(0, 99)]);
+        db.logActivity(act).catch(() => {});
+      }
     },
-    [items]
+    []
   );
 
   // Convert Item Type
   const convertItemType = useCallback(
     async (id: string, targetType: ItemType) => {
-      const target = items.find((i) => i.id === id);
-      if (!target) return;
-      const prevType = target.type;
+      let previousType: ItemType = 'text';
+      let convertedItem: Item | null = null;
 
       setItems((prev) =>
-        prev.map((it) =>
-          it.id === id
-            ? {
-                ...it,
-                type: targetType,
-                checked: targetType === 'checklist' ? it.checked ?? false : undefined,
-                updatedAt: Date.now(),
-              }
-            : it
-        )
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          previousType = it.type;
+          convertedItem = {
+            ...it,
+            type: targetType,
+            checked: targetType === 'checklist' ? it.checked ?? false : undefined,
+            updatedAt: Date.now(),
+          };
+          return convertedItem;
+        })
       );
 
-      const updated: Item = {
-        ...target,
-        type: targetType,
-        checked: targetType === 'checklist' ? target.checked ?? false : undefined,
-        updatedAt: Date.now(),
-      };
-      await db.saveItem(updated);
+      if (convertedItem) {
+        await db.saveItem(convertedItem);
 
-      triggerToast(`Converted to ${targetType}`, {
-        description: `Undo conversion to ${targetType}`,
-        revert: async () => {
-          await updateItem(id, { type: prevType });
-        },
-      });
+        triggerToast(`Converted to ${targetType}`, {
+          description: `Undo conversion to ${targetType}`,
+          revert: async () => {
+            await updateItem(id, { type: previousType });
+          },
+        });
+      }
     },
-    [items, triggerToast, updateItem]
+    [triggerToast, updateItem]
   );
 
   // Move Item to Workspace
   const moveItem = useCallback(
     async (id: string, targetWorkspaceId: string | null) => {
-      const target = items.find((i) => i.id === id);
-      if (!target) return;
-      const prevWorkspaceId = target.workspaceId;
+      let prevWorkspaceId: string | null = null;
+      let movedItem: Item | null = null;
 
       setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, workspaceId: targetWorkspaceId, updatedAt: Date.now() } : it))
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          prevWorkspaceId = it.workspaceId;
+          movedItem = { ...it, workspaceId: targetWorkspaceId, updatedAt: Date.now() };
+          return movedItem;
+        })
       );
 
-      const updated = { ...target, workspaceId: targetWorkspaceId, updatedAt: Date.now() };
-      await db.saveItem(updated);
+      if (movedItem) {
+        await db.saveItem(movedItem);
 
-      const destName = targetWorkspaceId
-        ? workspaces.find((w) => w.id === targetWorkspaceId)?.name || 'Workspace'
-        : 'Scratch';
+        const destName = targetWorkspaceId
+          ? workspaces.find((w) => w.id === targetWorkspaceId)?.name || 'Workspace'
+          : 'Scratch';
 
-      triggerToast(`Moved to ${destName}`, {
-        description: 'Undo move',
-        revert: async () => {
-          await updateItem(id, { workspaceId: prevWorkspaceId });
-        },
-      });
+        triggerToast(`Moved to ${destName}`, {
+          description: 'Undo move',
+          revert: async () => {
+            await updateItem(id, { workspaceId: prevWorkspaceId });
+          },
+        });
+      }
     },
-    [items, workspaces, triggerToast, updateItem]
+    [workspaces, triggerToast, updateItem]
   );
 
   // Archive Item
   const archiveItem = useCallback(
     async (id: string) => {
-      const target = items.find((i) => i.id === id);
-      if (!target) return;
+      let archivedItem: Item | null = null;
 
       setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, status: 'archived', archivedAt: Date.now(), updatedAt: Date.now() } : it))
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          archivedItem = {
+            ...it,
+            status: 'archived',
+            archivedAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          return archivedItem;
+        })
       );
 
-      const updated: Item = {
-        ...target,
-        status: 'archived',
-        archivedAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      await db.saveItem(updated);
+      if (archivedItem) {
+        await db.saveItem(archivedItem);
 
-      triggerToast('Item archived', {
-        description: 'Undo archive',
-        revert: async () => {
-          await updateItem(id, { status: 'active', archivedAt: undefined });
-        },
-      });
+        triggerToast('Item archived', {
+          description: 'Undo archive',
+          revert: async () => {
+            await updateItem(id, { status: 'active', archivedAt: undefined });
+          },
+        });
+      }
     },
-    [items, triggerToast, updateItem]
+    [triggerToast, updateItem]
   );
 
   // Restore Item
   const restoreItem = useCallback(
     async (id: string) => {
-      const target = items.find((i) => i.id === id);
-      if (!target) return;
+      let restoredItem: Item | null = null;
 
       setItems((prev) =>
-        prev.map((it) =>
-          it.id === id
-            ? { ...it, status: 'active', archivedAt: undefined, deletedAt: undefined, updatedAt: Date.now() }
-            : it
-        )
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          restoredItem = {
+            ...it,
+            status: 'active',
+            archivedAt: undefined,
+            deletedAt: undefined,
+            updatedAt: Date.now(),
+          };
+          return restoredItem;
+        })
       );
 
-      const updated: Item = {
-        ...target,
-        status: 'active',
-        archivedAt: undefined,
-        deletedAt: undefined,
-        updatedAt: Date.now(),
-      };
-      await db.saveItem(updated);
-
-      triggerToast('Item restored to active surface');
+      if (restoredItem) {
+        await db.saveItem(restoredItem);
+        triggerToast('Item restored to active surface');
+      }
     },
-    [items, triggerToast]
+    [triggerToast]
   );
 
   // Soft Delete Item (Move to Trash)
   const softDeleteItem = useCallback(
     async (id: string) => {
-      const target = items.find((i) => i.id === id);
-      if (!target) return;
+      let deletedItem: Item | null = null;
+      let prevStatus = 'active';
 
       setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, status: 'deleted', deletedAt: Date.now(), updatedAt: Date.now() } : it))
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          prevStatus = it.status;
+          deletedItem = {
+            ...it,
+            status: 'deleted',
+            deletedAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          return deletedItem;
+        })
       );
 
-      const updated: Item = {
-        ...target,
-        status: 'deleted',
-        deletedAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      await db.saveItem(updated);
+      if (deletedItem) {
+        await db.saveItem(deletedItem);
 
-      triggerToast('Item moved to trash', {
-        description: 'Undo delete',
-        revert: async () => {
-          await updateItem(id, { status: target.status, deletedAt: undefined });
-        },
-      });
+        triggerToast('Item moved to trash', {
+          description: 'Undo delete',
+          revert: async () => {
+            await updateItem(id, { status: prevStatus as any, deletedAt: undefined });
+          },
+        });
+      }
     },
-    [items, triggerToast, updateItem]
+    [triggerToast, updateItem]
   );
 
   // Permanently Delete Item
@@ -497,6 +529,18 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       setItems((prev) => prev.filter((it) => it.id !== id));
       await db.deleteItem(id);
       triggerToast('Item permanently deleted');
+    },
+    [triggerToast]
+  );
+
+  // Permanently Delete Items (Bulk)
+  const permanentlyDeleteItems = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const idSet = new Set(ids);
+      setItems((prev) => prev.filter((it) => !idSet.has(it.id)));
+      await db.deleteItems(ids);
+      triggerToast(`${ids.length} items permanently deleted`);
     },
     [triggerToast]
   );
@@ -522,21 +566,26 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
   );
 
   const updateWorkspace = useCallback(async (id: string, updates: Partial<Workspace>) => {
+    let wsToSave: Workspace | null = null;
     setWorkspaces((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, ...updates, updatedAt: Date.now() } : w))
+      prev.map((w) => {
+        if (w.id !== id) return w;
+        wsToSave = { ...w, ...updates, updatedAt: Date.now() };
+        return wsToSave;
+      })
     );
-    const target = workspaces.find((w) => w.id === id);
-    if (target) {
-      await db.saveWorkspace({ ...target, ...updates, updatedAt: Date.now() });
+
+    if (wsToSave) {
+      await db.saveWorkspace(wsToSave);
     }
-  }, [workspaces]);
+  }, []);
 
   const deleteWorkspace = useCallback(
     async (id: string) => {
       const wsToDelete = workspaces.find((w) => w.id === id);
       if (!wsToDelete) return;
 
-      // Keep items by moving them to scratch (Spec Section 27 - never lose data)
+      // Keep items by moving them safely to scratch (Spec Section 27 - never lose data)
       setItems((prev) =>
         prev.map((it) => (it.workspaceId === id ? { ...it, workspaceId: null, updatedAt: Date.now() } : it))
       );
@@ -552,14 +601,14 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         setActiveView({ type: 'today' });
       }
 
-      triggerToast(`Workspace "${wsToDelete.name}" deleted. Items kept in Scratch.`);
+      triggerToast(`Workspace "${wsToDelete.name}" deleted. Notes preserved in Scratch.`);
     },
     [workspaces, items, activeView, triggerToast]
   );
 
   // Update Settings
   const updateSettings = useCallback(
-    async (updates: Partial<UserSettings>) => {
+    async (updates: Partial<ExtendedUserSettings>) => {
       const updated = { ...settings, ...updates };
       setSettings(updated);
       if (updates.theme) {
@@ -570,7 +619,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
     [settings]
   );
 
-  // Import Data
+  // Import Data (Robust with orphan check and merge recency check)
   const importWorkpadData = useCallback(
     async (
       importedItems: Item[],
@@ -578,12 +627,24 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       mode: 'merge' | 'replace' | 'new_workspace',
       newWorkspaceName?: string
     ) => {
+      // Validate all workspace references so orphaned items safely fall back to Scratch
+      const validWsIds = new Set(
+        mode === 'replace'
+          ? importedWorkspaces.map((w) => w.id)
+          : [...workspaces.map((w) => w.id), ...importedWorkspaces.map((w) => w.id)]
+      );
+
+      const sanitizedItems = importedItems.map((item) => ({
+        ...item,
+        workspaceId: item.workspaceId && validWsIds.has(item.workspaceId) ? item.workspaceId : null,
+      }));
+
       if (mode === 'replace') {
-        await db.clearAllData();
+        // Atomic save new data first before setting state
         await db.saveWorkspaces(importedWorkspaces);
-        await db.saveItems(importedItems);
+        await db.saveItems(sanitizedItems);
         setWorkspaces(importedWorkspaces);
-        setItems(importedItems);
+        setItems(sanitizedItems);
       } else if (mode === 'new_workspace') {
         const ws: Workspace = {
           id: generateId('ws'),
@@ -592,7 +653,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
-        const adjustedItems = importedItems.map((it) => ({
+        const adjustedItems = sanitizedItems.map((it) => ({
           ...it,
           id: generateId('item'),
           workspaceId: ws.id,
@@ -603,22 +664,24 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
         setItems((prev) => [...adjustedItems, ...prev]);
         setActiveView({ type: 'workspace', workspaceId: ws.id });
       } else {
-        // Merge mode
+        // Merge mode: keep newer record if IDs conflict
         const existingItemMap = new Map(items.map((i) => [i.id, i]));
-        const mergedItems = [...items];
-        for (const it of importedItems) {
-          if (!existingItemMap.has(it.id)) {
-            mergedItems.push(it);
+        for (const it of sanitizedItems) {
+          const existing = existingItemMap.get(it.id);
+          if (!existing || it.updatedAt > existing.updatedAt) {
+            existingItemMap.set(it.id, it);
           }
         }
+        const mergedItems = Array.from(existingItemMap.values());
 
         const existingWsMap = new Map(workspaces.map((w) => [w.id, w]));
-        const mergedWorkspaces = [...workspaces];
         for (const w of importedWorkspaces) {
-          if (!existingWsMap.has(w.id)) {
-            mergedWorkspaces.push(w);
+          const existing = existingWsMap.get(w.id);
+          if (!existing || w.updatedAt > existing.updatedAt) {
+            existingWsMap.set(w.id, w);
           }
         }
+        const mergedWorkspaces = Array.from(existingWsMap.values());
 
         await db.saveWorkspaces(mergedWorkspaces);
         await db.saveItems(mergedItems);
@@ -631,15 +694,18 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
     [items, workspaces, triggerToast]
   );
 
-  // Reset All
+  // Reset All (Sets hasInitialized to true so starter notes never re-seed!)
   const resetAllData = useCallback(async () => {
     await db.clearAllData();
+    const cleanSettings: ExtendedUserSettings = { ...settings, hasInitialized: true };
+    await db.saveSettings(cleanSettings);
     setItems([]);
     setWorkspaces([]);
     setActivity([]);
+    setSettings(cleanSettings);
     setActiveView({ type: 'today' });
-    triggerToast('All data cleared');
-  }, [triggerToast]);
+    triggerToast('All data cleared. Empty workspace ready.');
+  }, [settings, triggerToast]);
 
   const value = useMemo(
     () => ({
@@ -669,6 +735,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       restoreItem,
       softDeleteItem,
       permanentlyDeleteItem,
+      permanentlyDeleteItems,
       createWorkspace,
       updateWorkspace,
       deleteWorkspace,
@@ -700,6 +767,7 @@ export function WorkpadProvider({ children }: { children: ReactNode }) {
       archiveItem,
       restoreItem,
       softDeleteItem,
+      permanentlyDeleteItems,
       permanentlyDeleteItem,
       createWorkspace,
       updateWorkspace,
@@ -724,4 +792,3 @@ export function useWorkpad() {
   }
   return context;
 }
-
