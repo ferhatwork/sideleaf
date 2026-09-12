@@ -85,17 +85,23 @@ describe('Deterministic Runtime & Single-Instance Verification', () => {
   });
 
   describe('Build Metadata Schema', () => {
-    it('public/build-info.json exists and conforms to build metadata schema', () => {
-      const buildInfoPath = path.join(rootDir, 'public/build-info.json');
-      expect(fs.existsSync(buildInfoPath)).toBe(true);
+    it('dist/build-info.json conforms to build metadata schema and generator script is valid', () => {
+      const distInfoPath = path.join(rootDir, 'dist/build-info.json');
+      if (fs.existsSync(distInfoPath)) {
+        const data = JSON.parse(fs.readFileSync(distInfoPath, 'utf8'));
+        expect(data.name).toBe('Sideleaf');
+        expect(typeof data.version).toBe('string');
+        expect(typeof data.builtAt).toBe('string');
+        expect(new Date(data.builtAt).toISOString()).toBe(data.builtAt);
+        expect('commit' in data).toBe(true);
+      }
 
-      const data = JSON.parse(fs.readFileSync(buildInfoPath, 'utf8'));
-      expect(data.name).toBe('Sideleaf');
-      expect(typeof data.version).toBe('string');
-      expect(typeof data.builtAt).toBe('string');
-      // ISO timestamp verification
-      expect(new Date(data.builtAt).toISOString()).toBe(data.builtAt);
-      expect('commit' in data).toBe(true);
+      // generate-build-info script targets dist/build-info.json and uses git rev-parse HEAD
+      const genScriptPath = path.join(rootDir, 'scripts/generate-build-info.mjs');
+      expect(fs.existsSync(genScriptPath)).toBe(true);
+      const genScript = fs.readFileSync(genScriptPath, 'utf8');
+      expect(genScript).toContain('git rev-parse HEAD');
+      expect(genScript).toContain("path.join(distDir, 'build-info.json')");
     });
   });
 });

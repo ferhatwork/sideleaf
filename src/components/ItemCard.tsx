@@ -1,8 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Item, ItemType, Workspace, Section, Locale } from '../types';
 import { formatTimeAgo, extractDomain } from '../utils/format';
 import { isValidUrl } from '../utils/linkParser';
 import { useSideleaf } from '../hooks/useSideleaf';
+import {
+  formatNextReminderBadge,
+  formatReminderDisplay,
+  getNextUpcomingReminder,
+} from '../utils/reminderDomain';
 import {
   CheckSquare,
   Square,
@@ -18,6 +23,7 @@ import {
   Sparkles,
   Layers,
   Link as LinkIcon,
+  Bell,
 } from 'lucide-react';
 
 interface ItemCardProps {
@@ -36,6 +42,7 @@ interface ItemCardProps {
   onArchive: (id: string) => Promise<void>;
   onRestore?: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onOpenReminder?: (item: Item) => void;
   showWorkspaceBadge?: boolean;
 }
 
@@ -55,10 +62,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   onArchive,
   onRestore,
   onDelete,
+  onOpenReminder,
   showWorkspaceBadge = true,
 }) => {
-  const { t, locale: ctxLocale } = useSideleaf();
+  const { t, locale: ctxLocale, reminders, openReminderModal } = useSideleaf();
   const activeLocale = locale || ctxLocale || 'en';
+  const handleOpenReminder = onOpenReminder || openReminderModal;
+
+  const activeReminders = useMemo(
+    () => (reminders || []).filter((r) => r.itemId === item.id && r.enabled),
+    [reminders, item.id]
+  );
+  const nextReminder = useMemo(() => getNextUpcomingReminder(activeReminders), [activeReminders]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(item.content);
@@ -351,6 +366,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             </button>
           )}
 
+          {/* Reminder */}
+          <button
+            onClick={() => {
+              handleOpenReminder(item);
+              setShowMenu(false);
+            }}
+            className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2"
+          >
+            <Bell className="w-3.5 h-3.5 text-blue-500" />
+            <span>{t.item.reminderAction || t.reminder.reminder}</span>
+          </button>
+
           {/* Move to Section (if sections exist and handler provided) */}
           {sections.length > 0 && onMoveToSection && (
             <div className="relative">
@@ -523,6 +550,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   return (
     <div
+      id={`item-${item.id}`}
       className={`group relative rounded-lg px-3 ${
         compact ? 'py-1' : 'py-2'
       } -mx-3 transition-colors ${
@@ -695,7 +723,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           {/* Low-contrast metadata in normal mode; omitted in compact mode */}
           {!compact && (
             <div className="mt-1 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span>{formatTimeAgo(item.updatedAt, activeLocale)}</span>
                 {showWorkspaceBadge && (
                   <>
@@ -703,6 +731,23 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                     <span className="text-neutral-500 dark:text-neutral-400 font-medium">
                       {currentWorkspace ? currentWorkspace.name : t.item.scratchOption}
                     </span>
+                  </>
+                )}
+                {nextReminder && (
+                  <>
+                    <span>·</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenReminder(item);
+                      }}
+                      className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline focus-ring rounded"
+                      title={formatReminderDisplay(nextReminder, activeLocale)}
+                    >
+                      <Bell className="w-3 h-3 text-blue-500 shrink-0" />
+                      <span>{formatNextReminderBadge(nextReminder, activeLocale)}</span>
+                    </button>
                   </>
                 )}
               </div>
@@ -723,14 +768,30 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
         {/* Compact mode inline menu */}
         {compact && (
-          <div
-            className={`${
-              isSelected
-                ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100'
-            } transition-opacity flex-shrink-0 self-start mt-0.5`}
-          >
-            {renderActionMenu()}
+          <div className="flex items-center gap-1 flex-shrink-0 self-start mt-0.5">
+            {nextReminder && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenReminder(item);
+                }}
+                className="p-1 rounded text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 focus-ring"
+                title={`${t.reminder.nextReminder}: ${formatNextReminderBadge(nextReminder, activeLocale)}`}
+                aria-label={`${t.reminder.nextReminder}: ${formatNextReminderBadge(nextReminder, activeLocale)}`}
+              >
+                <Bell className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <div
+              className={`${
+                isSelected
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100'
+              } transition-opacity`}
+            >
+              {renderActionMenu()}
+            </div>
           </div>
         )}
       </div>

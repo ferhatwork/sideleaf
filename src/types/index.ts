@@ -20,6 +20,48 @@ export interface Section {
   updatedAt: number;
 }
 
+export type ReminderType = 'once' | 'daily' | 'weekly';
+
+export interface Reminder {
+  id: string;
+  itemId: string;
+  type: ReminderType;
+  scheduledAt: number; // Next scheduled trigger in local Unix milliseconds
+  time?: string; // "HH:mm" local time representation
+  weekdays?: number[]; // Array of weekday numbers: 1 (Mon) .. 7 (Sun)
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastTriggeredAt?: number;
+}
+
+export interface CreateReminderParams {
+  itemId: string;
+  type: ReminderType;
+  scheduledAt?: number;
+  time?: string;
+  weekdays?: number[];
+  enabled?: boolean;
+}
+
+export interface RuntimeReminder {
+  id: string;
+  itemId: string;
+  itemContent: string;
+  type: ReminderType;
+  scheduledAt: number;
+  time?: string;
+  weekdays?: number[];
+  enabled: boolean;
+  lastTriggeredAt?: number;
+}
+
+export interface RuntimeRemindersPayload {
+  version: 1;
+  updatedAt: string;
+  reminders: RuntimeReminder[];
+}
+
 export interface Item {
   id: string;
   workspaceId: string | null; // null means scratch / unassigned
@@ -133,6 +175,7 @@ export interface SideleafExportData {
   workspaces: Workspace[];
   items: Item[];
   sections?: Section[];
+  reminders?: Reminder[];
   settings?: UserSettings;
   activity?: ActivityLog[];
 }

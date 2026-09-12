@@ -146,6 +146,45 @@ export interface ItemTranslations {
   decisionBadge: string;
   sourceLabel: string;
   openSource: string;
+  reminderAction: string;
+}
+
+export interface ReminderTranslations {
+  reminder: string;
+  reminders: string;
+  addReminder: string;
+  editReminder: string;
+  noReminders: string;
+  once: string;
+  daily: string;
+  weekly: string;
+  time: string;
+  date: string;
+  weekdays: string;
+  enabled: string;
+  disabled: string;
+  disable: string;
+  enable: string;
+  remove: string;
+  nextReminder: string;
+  dueNow: string;
+  expired: string;
+  notificationPermission: string;
+  permissionRequested: string;
+  permissionDenied: string;
+  openSideleaf: string;
+  reminderAdded: string;
+  reminderDeleted: string;
+  reminderUpdated: string;
+  days: {
+    mon: string;
+    tue: string;
+    wed: string;
+    thu: string;
+    fri: string;
+    sat: string;
+    sun: string;
+  };
 }
 
 export interface SectionTranslations {
@@ -325,4 +364,5 @@ export interface TranslationSchema {
   shortcuts: ShortcutsTranslations;
   types: TypesTranslations;
   toast: ToastTranslations;
+  reminder: ReminderTranslations;
 }

@@ -57,6 +57,107 @@ function getRuntimeDir() {
 
 const runtimeDir = getRuntimeDir();
 const runtimeJsonPath = path.join(runtimeDir, 'runtime.json');
+const remindersJsonPath = path.join(runtimeDir, 'reminders.json');
+
+let activeReminders = [];
+
+function loadRuntimeReminders() {
+  try {
+    if (fs.existsSync(remindersJsonPath)) {
+      const raw = fs.readFileSync(remindersJsonPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.reminders)) {
+        activeReminders = parsed.reminders;
+        return;
+      }
+    }
+  } catch {}
+  activeReminders = [];
+}
+
+function saveRuntimeReminders(remList) {
+  try {
+    if (!fs.existsSync(runtimeDir)) {
+      fs.mkdirSync(runtimeDir, { recursive: true });
+    }
+    const payload = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      reminders: remList,
+    };
+    fs.writeFileSync(remindersJsonPath, JSON.stringify(payload, null, 2), 'utf8');
+  } catch {}
+}
+
+function calculateNextOccurrence(rem, fromMs) {
+  const fromDate = new Date(fromMs);
+  const timeStr = rem.time || '09:00';
+  const parts = timeStr.split(':');
+  const targetHour = parseInt(parts[0], 10) || 0;
+  const targetMinute = parseInt(parts[1], 10) || 0;
+
+  if (rem.type === 'daily') {
+    const today = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate(), targetHour, targetMinute, 0, 0);
+    if (today.getTime() > fromMs) {
+      return today.getTime();
+    }
+    const tomorrow = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate() + 1, targetHour, targetMinute, 0, 0);
+    return tomorrow.getTime();
+  }
+
+  if (rem.type === 'weekly') {
+    const rawWeekdays = rem.weekdays && rem.weekdays.length > 0 ? rem.weekdays : [1];
+    const valid = new Set(rawWeekdays);
+    for (let offset = 0; offset <= 7; offset++) {
+      const candidate = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate() + offset, targetHour, targetMinute, 0, 0);
+      const isoDay = candidate.getDay() === 0 ? 7 : candidate.getDay();
+      if (valid.has(isoDay)) {
+        if (candidate.getTime() > fromMs) {
+          return candidate.getTime();
+        }
+      }
+    }
+    const fallback = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate() + 7, targetHour, targetMinute, 0, 0);
+    return fallback.getTime();
+  }
+  return null;
+}
+
+function checkDueReminders() {
+  if (!activeReminders || activeReminders.length === 0) {
+    loadRuntimeReminders();
+  }
+  if (!activeReminders || activeReminders.length === 0) return;
+
+  const nowMs = Date.now();
+  let changed = false;
+
+  for (const rem of activeReminders) {
+    if (!rem.enabled) continue;
+    if (rem.scheduledAt > nowMs) continue;
+    if (rem.lastTriggeredAt && rem.lastTriggeredAt >= rem.scheduledAt) continue;
+
+    // Fired
+    rem.lastTriggeredAt = nowMs;
+    changed = true;
+    console.log(`[reminder] Due: "${rem.itemContent || 'Note'}" (type: ${rem.type})`);
+
+    if (rem.type === 'once') {
+      rem.enabled = false;
+    } else if (rem.type === 'daily' || rem.type === 'weekly') {
+      const nextMs = calculateNextOccurrence(rem, nowMs);
+      if (nextMs) {
+        rem.scheduledAt = nextMs;
+      } else {
+        rem.enabled = false;
+      }
+    }
+  }
+
+  if (changed) {
+    saveRuntimeReminders(activeReminders);
+  }
+}
 
 function saveRuntimeMetadata() {
   try {
@@ -112,6 +213,67 @@ const server = http.createServer((req, res) => {
   try {
     const rawUrl = req.url || '/';
     const parsedPath = decodeURIComponent(rawUrl.split('?')[0].split('#')[0]);
+
+    // Internal local API: /__sideleaf/reminders
+    if (parsedPath === '/__sideleaf/reminders') {
+      const reqHost = req.headers.host;
+      const origin = req.headers.origin;
+      const referer = req.headers.referer;
+      const secSite = req.headers['sec-fetch-site'];
+
+      const validHost = reqHost === `127.0.0.1:${PORT}` || reqHost === `localhost:${PORT}`;
+      const validOrigin = !origin || origin === ORIGIN || origin === `http://localhost:${PORT}`;
+      const validReferer = !referer || referer.startsWith(ORIGIN + '/') || referer.startsWith(`http://localhost:${PORT}/`);
+      const validSecSite = !secSite || secSite === 'same-origin' || secSite === 'none';
+
+      if (!validHost || !validOrigin || !validReferer || !validSecSite) {
+        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('403 Forbidden');
+        return;
+      }
+
+      if (req.method === 'GET') {
+        let content = '{"version":1,"updatedAt":null,"reminders":[]}';
+        if (fs.existsSync(remindersJsonPath)) {
+          try {
+            content = fs.readFileSync(remindersJsonPath, 'utf8');
+          } catch {}
+        }
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-Sideleaf-Server': '1',
+        });
+        res.end(content);
+        return;
+      }
+
+      if (req.method === 'PUT' || req.method === 'POST') {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+        });
+        req.on('end', () => {
+          try {
+            const parsed = JSON.parse(body);
+            if (parsed && Array.isArray(parsed.reminders)) {
+              if (!fs.existsSync(runtimeDir)) {
+                fs.mkdirSync(runtimeDir, { recursive: true });
+              }
+              fs.writeFileSync(remindersJsonPath, body, 'utf8');
+              activeReminders = parsed.reminders;
+            }
+          } catch {}
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'X-Sideleaf-Server': '1',
+          });
+          res.end('{"ok":true}');
+        });
+        return;
+      }
+    }
 
     // Path traversal check
     if (parsedPath.includes('..') || rawUrl.includes('..')) {
@@ -199,8 +361,13 @@ const server = http.createServer((req, res) => {
 const args = process.argv.slice(2);
 const noBrowser = args.includes('--no-browser') || args.includes('-NoBrowser');
 
+let reminderInterval = null;
+
 server.listen(PORT, HOST, () => {
   saveRuntimeMetadata();
+  loadRuntimeReminders();
+  reminderInterval = setInterval(checkDueReminders, 5000);
+
   const url = `${ORIGIN}/`;
 
   console.log(`Sideleaf is running locally at ${url}`);
@@ -242,6 +409,9 @@ function openBrowser(url) {
 }
 
 const shutdown = () => {
+  if (reminderInterval) {
+    clearInterval(reminderInterval);
+  }
   removeRuntimeMetadata();
   server.close(() => {
     process.exit(0);

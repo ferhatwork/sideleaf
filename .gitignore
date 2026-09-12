@@ -28,3 +28,4 @@ Thumbs.db
 *.sw?
 .cortex/
 AGENTS.md
+public/build-info.json

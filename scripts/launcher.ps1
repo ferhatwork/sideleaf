@@ -89,6 +89,163 @@ function Remove-RuntimeMetadata {
     }
 }
 
+$remindersJsonPath = Join-Path $runtimeDir "reminders.json"
+
+function Send-SideleafNotification([string]$title, [string]$message, [string]$itemId) {
+    $launchUrl = if ([string]::IsNullOrWhiteSpace($itemId)) { $ORIGIN } else { "$ORIGIN/?item=$itemId" }
+
+    # 1. Try modern WinRT Toast Notification (Windows 10 / 11)
+    try {
+        [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+        [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+        $safeTitle = [System.Security.SecurityElement]::Escape($title)
+        $safeMessage = [System.Security.SecurityElement]::Escape($message)
+        $safeUrl = [System.Security.SecurityElement]::Escape($launchUrl)
+
+        $template = @"
+<toast activationType="protocol" launch="$safeUrl">
+    <visual>
+        <binding template="ToastGeneric">
+            <text>$safeTitle</text>
+            <text>$safeMessage</text>
+        </binding>
+    </visual>
+    <actions>
+        <action content="Sideleaf'te Aç" arguments="$safeUrl" activationType="protocol"/>
+    </actions>
+</toast>
+"@
+
+        $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+        $xml.LoadXml($template)
+        $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+
+        $appId = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
+        $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
+        $notifier.Show($toast)
+        return $true
+    } catch {
+        # 2. Fallback to System.Windows.Forms.NotifyIcon Balloon
+        try {
+            Add-Type -AssemblyName System.Windows.Forms
+            Add-Type -AssemblyName System.Drawing
+            $notify = New-Object System.Windows.Forms.NotifyIcon
+            $notify.Icon = [System.Drawing.SystemIcons]::Information
+            $notify.BalloonTipTitle = $title
+            $notify.BalloonTipText = $message
+            $notify.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
+            $notify.Visible = $true
+            $notify.ShowBalloonTip(5000)
+            return $true
+        } catch {
+            return $false
+        }
+    }
+}
+
+function Get-RuntimeReminders {
+    if (Test-Path $remindersJsonPath) {
+        try {
+            $raw = Get-Content $remindersJsonPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $parsed = $raw | ConvertFrom-Json
+                if ($parsed -and $parsed.reminders) {
+                    return [System.Collections.ArrayList]@($parsed.reminders)
+                }
+            }
+        } catch {}
+    }
+    return [System.Collections.ArrayList]@()
+}
+
+function Save-RuntimeReminders($remindersList) {
+    try {
+        $payload = @{
+            version   = 1
+            updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            reminders = @($remindersList)
+        }
+        $json = $payload | ConvertTo-Json -Depth 5
+        [System.IO.File]::WriteAllText($remindersJsonPath, $json, [System.Text.Encoding]::UTF8)
+    } catch {}
+}
+
+function Calculate-NextOccurrenceMs($rem, [long]$fromMs) {
+    try {
+        $now = [DateTimeOffset]::FromUnixTimeMilliseconds($fromMs).LocalDateTime
+        $timeStr = if ($rem.time) { [string]$rem.time } else { "09:00" }
+        $parts = $timeStr.Split(":")
+        $hour = [int]$parts[0]
+        $minute = if ($parts.Length -gt 1) { [int]$parts[1] } else { 0 }
+
+        if ($rem.type -eq "daily") {
+            $candidate = [DateTime]::new($now.Year, $now.Month, $now.Day, $hour, $minute, 0)
+            if ($candidate -le $now) {
+                $candidate = $candidate.AddDays(1)
+            }
+            return [DateTimeOffset]::new($candidate).ToUnixTimeMilliseconds()
+        }
+
+        if ($rem.type -eq "weekly") {
+            $wDays = if ($rem.weekdays) { [int[]]$rem.weekdays } else { @(1) }
+            for ($offset = 0; $offset -le 7; $offset++) {
+                $candidate = [DateTime]::new($now.Year, $now.Month, $now.Day, $hour, $minute, 0).AddDays($offset)
+                $isoDay = if ($candidate.DayOfWeek -eq [DayOfWeek]::Sunday) { 7 } else { [int]$candidate.DayOfWeek }
+                if ($wDays -contains $isoDay) {
+                    if ($candidate -gt $now) {
+                        return [DateTimeOffset]::new($candidate).ToUnixTimeMilliseconds()
+                    }
+                }
+            }
+            $fallback = [DateTime]::new($now.Year, $now.Month, $now.Day, $hour, $minute, 0).AddDays(7)
+            return [DateTimeOffset]::new($fallback).ToUnixTimeMilliseconds()
+        }
+    } catch {}
+    return $null
+}
+
+function Check-And-Fire-DueReminders {
+    if (-not $script:activeReminders -or $script:activeReminders.Count -eq 0) {
+        $script:activeReminders = Get-RuntimeReminders
+    }
+    if (-not $script:activeReminders -or $script:activeReminders.Count -eq 0) { return }
+
+    $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $changed = $false
+
+    foreach ($rem in $script:activeReminders) {
+        if ($rem.enabled -ne $true) { continue }
+        if ([long]$rem.scheduledAt -gt $nowMs) { continue }
+        if ($rem.lastTriggeredAt -and [long]$rem.lastTriggeredAt -ge [long]$rem.scheduledAt) { continue }
+
+        # Trigger notification
+        $title = "Sideleaf"
+        $msg = if ($rem.itemContent) { [string]$rem.itemContent } else { "Hatırlatıcı" }
+        $itemId = if ($rem.itemId) { [string]$rem.itemId } else { "" }
+
+        Send-SideleafNotification $title $msg $itemId
+
+        $rem.lastTriggeredAt = $nowMs
+        $changed = $true
+
+        if ($rem.type -eq "once") {
+            $rem.enabled = $false
+        } elseif ($rem.type -eq "daily" -or $rem.type -eq "weekly") {
+            $nextMs = Calculate-NextOccurrenceMs $rem $nowMs
+            if ($nextMs) {
+                $rem.scheduledAt = $nextMs
+            } else {
+                $rem.enabled = $false
+            }
+        }
+    }
+
+    if ($changed) {
+        Save-RuntimeReminders $script:activeReminders
+    }
+}
+
 function Get-PortOccupantPid {
     try {
         $conn = Get-NetTCPConnection -LocalAddress $HOST_IP -LocalPort $PORT -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -534,9 +691,39 @@ function Run-HttpServer {
 
     $buildHeaderVal = if ($localBuild -and $localBuild.builtAt) { $localBuild.builtAt } else { "unknown" }
 
+    $script:activeReminders = Get-RuntimeReminders
+    $script:lastReminderCheck = [DateTime]::MinValue
+    $asyncContext = $listener.BeginGetContext($null, $null)
+
     try {
         while ($listener.IsListening) {
-            $context = $listener.GetContext()
+            $hasReq = $false
+            try {
+                $hasReq = $asyncContext.AsyncWaitHandle.WaitOne(1000)
+            } catch {
+                break
+            }
+
+            # Periodic check for due reminders even when browser is closed
+            if ((Get-Date) -gt $script:lastReminderCheck.AddSeconds(3)) {
+                $script:lastReminderCheck = Get-Date
+                Check-And-Fire-DueReminders
+            }
+
+            if (-not $hasReq) {
+                continue
+            }
+
+            $context = $null
+            try {
+                $context = $listener.EndGetContext($asyncContext)
+            } catch {
+                break
+            }
+
+            # Re-arm listener for next request immediately
+            $asyncContext = $listener.BeginGetContext($null, $null)
+
             $request = $context.Request
             $response = $context.Response
 
@@ -552,6 +739,66 @@ function Run-HttpServer {
                     $response.ContentLength64 = $bytes.Length
                     $response.OutputStream.Write($bytes, 0, $bytes.Length)
                     continue
+                }
+
+                # Internal local API: /__sideleaf/reminders
+                if ($unescaped -eq "/__sideleaf/reminders") {
+                    $reqHost = $request.Headers["Host"]
+                    $origin = $request.Headers["Origin"]
+                    $referer = $request.Headers["Referer"]
+                    $secSite = $request.Headers["Sec-Fetch-Site"]
+
+                    $validHost = ($reqHost -eq "127.0.0.1:$PORT" -or $reqHost -eq "localhost:$PORT")
+                    $validOrigin = ([string]::IsNullOrEmpty($origin) -or $origin -eq $ORIGIN -or $origin -eq "http://localhost:$PORT")
+                    $validReferer = ([string]::IsNullOrEmpty($referer) -or $referer.StartsWith($PREFIX) -or $referer.StartsWith("http://localhost:$PORT/"))
+                    $validSecSite = ([string]::IsNullOrEmpty($secSite) -or $secSite -eq "same-origin" -or $secSite -eq "none")
+
+                    if (-not ($validHost -and $validOrigin -and $validReferer -and $validSecSite)) {
+                        $response.StatusCode = 403
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden")
+                        $response.ContentType = "text/plain; charset=utf-8"
+                        $response.ContentLength64 = $bytes.Length
+                        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                        continue
+                    }
+
+                    if ($request.HttpMethod -eq "GET") {
+                        $content = if (Test-Path $remindersJsonPath) {
+                            [System.IO.File]::ReadAllText($remindersJsonPath, [System.Text.Encoding]::UTF8)
+                        } else {
+                            '{"version":1,"updatedAt":null,"reminders":[]}'
+                        }
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes($content)
+                        $response.StatusCode = 200
+                        $response.ContentType = "application/json; charset=utf-8"
+                        $response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+                        $response.Headers.Add("X-Sideleaf-Server", "1")
+                        $response.ContentLength64 = $bytes.Length
+                        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                        continue
+                    } elseif ($request.HttpMethod -eq "PUT" -or $request.HttpMethod -eq "POST") {
+                        $reader = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
+                        $body = $reader.ReadToEnd()
+                        $reader.Close()
+
+                        try {
+                            $parsed = $body | ConvertFrom-Json
+                            if ($parsed -and $parsed.reminders -ne $null) {
+                                [System.IO.File]::WriteAllText($remindersJsonPath, $body, [System.Text.Encoding]::UTF8)
+                                $script:activeReminders = [System.Collections.ArrayList]@($parsed.reminders)
+                            }
+                        } catch {}
+
+                        $respText = '{"ok":true}'
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes($respText)
+                        $response.StatusCode = 200
+                        $response.ContentType = "application/json; charset=utf-8"
+                        $response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+                        $response.Headers.Add("X-Sideleaf-Server", "1")
+                        $response.ContentLength64 = $bytes.Length
+                        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                        continue
+                    }
                 }
 
                 $relPath = $unescaped.TrimStart('/')

@@ -1,4 +1,4 @@
-import { SideleafExportData, Workspace, Item, Section, UserSettings, ActivityLog } from '../types';
+import { SideleafExportData, Workspace, Item, Section, Reminder, UserSettings, ActivityLog } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -8,6 +8,7 @@ export interface ValidationResult {
     workspacesCount: number;
     itemsCount: number;
     sectionsCount?: number;
+    remindersCount?: number;
     activityCount: number;
   };
 }
@@ -70,10 +71,33 @@ export function validateSideleafData(raw: unknown): ValidationResult {
     }
   }
 
+  // Validate reminders structure if present (backward compatibility: optional)
+  if (candidate.reminders !== undefined) {
+    if (!Array.isArray(candidate.reminders)) {
+      return { valid: false, error: 'Invalid format: "reminders" must be an array.' };
+    }
+    for (let i = 0; i < candidate.reminders.length; i++) {
+      const rem = candidate.reminders[i];
+      if (
+        !rem.id ||
+        typeof rem.id !== 'string' ||
+        !rem.itemId ||
+        typeof rem.itemId !== 'string' ||
+        !rem.type ||
+        !['once', 'daily', 'weekly'].includes(rem.type) ||
+        typeof rem.scheduledAt !== 'number' ||
+        typeof rem.enabled !== 'boolean'
+      ) {
+        return { valid: false, error: `Reminder at index ${i} has invalid structure.` };
+      }
+    }
+  }
+
   const stats: {
     workspacesCount: number;
     itemsCount: number;
     sectionsCount?: number;
+    remindersCount?: number;
     activityCount: number;
   } = {
     workspacesCount: candidate.workspaces.length,
@@ -83,6 +107,10 @@ export function validateSideleafData(raw: unknown): ValidationResult {
 
   if (candidate.sections !== undefined) {
     stats.sectionsCount = candidate.sections.length;
+  }
+
+  if (candidate.reminders !== undefined) {
+    stats.remindersCount = candidate.reminders.length;
   }
 
   return {
@@ -100,7 +128,8 @@ export function generateExportData(
   items: Item[],
   settings?: UserSettings,
   activity?: ActivityLog[],
-  sections?: Section[]
+  sections?: Section[],
+  reminders?: Reminder[]
 ): SideleafExportData {
   return {
     schema: 'sideleaf-v1',
@@ -109,6 +138,7 @@ export function generateExportData(
     workspaces: [...workspaces],
     items: [...items],
     sections: sections ? [...sections] : undefined,
+    reminders: reminders ? [...reminders] : undefined,
     settings: settings ? { ...settings } : undefined,
     activity: activity ? [...activity] : undefined,
   };

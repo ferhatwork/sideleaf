@@ -3,6 +3,8 @@ import {
   Item,
   Workspace,
   Section,
+  Reminder,
+  CreateReminderParams,
   UserSettings,
   Locale,
   ActivityLog,
@@ -17,6 +19,8 @@ import { detectSystemLocale, getTranslation, TranslationSchema } from '../i18n';
 import { db } from '../services/db';
 import { generateId } from '../utils/id';
 import { createItemRecord, updateWorkSession } from '../utils/domain';
+import { calculateNextOccurrence } from '../utils/reminderDomain';
+import { syncRemindersToRuntime } from '../services/runtimeApi';
 import { usePwaInstall } from './usePwaInstall';
 
 interface UndoAction {
@@ -39,6 +43,7 @@ interface SideleafContextType extends ApplicationCommands {
   items: Item[];
   workspaces: Workspace[];
   sections: Section[];
+  reminders: Reminder[];
   settings: ExtendedUserSettings;
   activity: ActivityLog[];
   activeView: ActiveView;
@@ -62,6 +67,9 @@ interface SideleafContextType extends ApplicationCommands {
   setIsShortcutsOpen: (open: boolean) => void;
   isWorkspaceModalOpen: boolean;
   setIsWorkspaceModalOpen: (open: boolean) => void;
+  reminderModalItem: Item | null;
+  openReminderModal: (item: Item) => void;
+  closeReminderModal: () => void;
 
   // CRUD / Commands
   addItem: (params: CreateItemParams) => Promise<Item>;
@@ -77,6 +85,12 @@ interface SideleafContextType extends ApplicationCommands {
   softDeleteItem: (id: string) => Promise<void>;
   permanentlyDeleteItem: (id: string) => Promise<void>;
   permanentlyDeleteItems: (ids: string[]) => Promise<void>;
+
+  // Reminders
+  addReminder: (params: CreateReminderParams) => Promise<Reminder>;
+  updateReminder: (id: string, updates: Partial<Reminder>) => Promise<void>;
+  deleteReminder: (id: string) => Promise<void>;
+  toggleReminderEnabled: (id: string) => Promise<void>;
 
   // Sections & Bulk
   createSection: (workspaceId: string, name: string) => Promise<Section>;
@@ -105,7 +119,8 @@ interface SideleafContextType extends ApplicationCommands {
     newWorkspaceName?: string,
     sections?: Section[],
     settings?: UserSettings,
-    activity?: ActivityLog[]
+    activity?: ActivityLog[],
+    importedReminders?: Reminder[]
   ) => Promise<void>;
   importWorkpadData: (
     items: Item[],
@@ -114,7 +129,8 @@ interface SideleafContextType extends ApplicationCommands {
     newWorkspaceName?: string,
     sections?: Section[],
     settings?: UserSettings,
-    activity?: ActivityLog[]
+    activity?: ActivityLog[],
+    importedReminders?: Reminder[]
   ) => Promise<void>;
   resetAllData: () => Promise<void>;
 
@@ -151,6 +167,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [settings, setSettings] = useState<ExtendedUserSettings>(defaultSettings);
   const currentLocale: Locale = settings.locale || detectSystemLocale();
   const t: TranslationSchema = useMemo(() => getTranslation(currentLocale), [currentLocale]);
@@ -168,6 +185,15 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [reminderModalItem, setReminderModalItem] = useState<Item | null>(null);
+
+  const openReminderModal = useCallback((item: Item) => {
+    setReminderModalItem(item);
+  }, []);
+
+  const closeReminderModal = useCallback(() => {
+    setReminderModalItem(null);
+  }, []);
 
   // PWA Installation state & prompt
   const { canInstallPwa, installPwa } = usePwaInstall();
@@ -253,10 +279,11 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     async function loadData() {
       try {
-        const [loadedItems, loadedWorkspaces, loadedSections, loadedSettings, loadedActivity] = await Promise.all([
+        const [loadedItems, loadedWorkspaces, loadedSections, loadedReminders, loadedSettings, loadedActivity] = await Promise.all([
           db.getAllItems(),
           db.getAllWorkspaces(),
           db.getAllSections(),
+          db.getAllReminders(),
           db.getSettings() as Promise<ExtendedUserSettings | null>,
           db.getRecentActivity(100),
         ]);
@@ -278,6 +305,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         }
 
         setSections(loadedSections);
+        setReminders(loadedReminders);
 
         // Only seed realistic starter data on very first run (no fake tutorial/marketing cards!)
         if (!currentSettings.hasInitialized && loadedItems.length === 0) {
@@ -322,6 +350,15 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       isMounted = false;
     };
   }, []);
+
+  // Synchronize schedulable reminders with the local background runtime mirror
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = setTimeout(() => {
+      syncRemindersToRuntime(items, reminders);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [items, reminders, isLoading]);
 
   const applyTheme = (theme: 'light' | 'dark' | 'system') => {
     const root = document.documentElement;
@@ -629,7 +666,9 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
   const permanentlyDeleteItem = useCallback(
     async (id: string) => {
       setItems((prev) => prev.filter((it) => it.id !== id));
+      setReminders((prev) => prev.filter((r) => r.itemId !== id));
       await db.deleteItem(id);
+      await db.deleteRemindersByItem(id);
       triggerToast(t.toast.itemPermanentlyDeleted);
     },
     [triggerToast, t]
@@ -641,8 +680,103 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       if (ids.length === 0) return;
       const idSet = new Set(ids);
       setItems((prev) => prev.filter((it) => !idSet.has(it.id)));
+      setReminders((prev) => prev.filter((r) => !idSet.has(r.itemId)));
       await db.deleteItems(ids);
+      for (const id of ids) {
+        await db.deleteRemindersByItem(id);
+      }
       triggerToast(t.toast.itemsPermanentlyDeleted(ids.length));
+    },
+    [triggerToast, t]
+  );
+
+  // Reminder Operations
+  const addReminder = useCallback(
+    async (params: CreateReminderParams): Promise<Reminder> => {
+      const now = Date.now();
+      const scheduledAt =
+        typeof params.scheduledAt === 'number'
+          ? params.scheduledAt
+          : (params.type === 'once'
+              ? now + 3600000
+              : calculateNextOccurrence(
+                  { type: params.type, time: params.time, weekdays: params.weekdays },
+                  new Date(now)
+                )) ?? now + 3600000;
+
+      const newRem: Reminder = {
+        id: generateId('rem'),
+        itemId: params.itemId,
+        type: params.type,
+        scheduledAt,
+        time: params.time,
+        weekdays: params.weekdays,
+        enabled: params.enabled ?? true,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      setReminders((prev) => [...prev, newRem]);
+      await db.saveReminder(newRem);
+      triggerToast(t.reminder.reminderAdded);
+      return newRem;
+    },
+    [triggerToast, t]
+  );
+
+  const updateReminder = useCallback(
+    async (id: string, updates: Partial<Reminder>) => {
+      let remToSave: Reminder | null = null;
+      setReminders((prev) =>
+        prev.map((r) => {
+          if (r.id !== id) return r;
+          remToSave = { ...r, ...updates, updatedAt: Date.now() };
+          return remToSave;
+        })
+      );
+      if (remToSave) {
+        await db.saveReminder(remToSave);
+        triggerToast(t.reminder.reminderUpdated);
+      }
+    },
+    [triggerToast, t]
+  );
+
+  const deleteReminder = useCallback(
+    async (id: string) => {
+      let deletedRem: Reminder | undefined;
+      setReminders((prev) => {
+        deletedRem = prev.find((r) => r.id === id);
+        return prev.filter((r) => r.id !== id);
+      });
+      await db.deleteReminder(id);
+      triggerToast(t.reminder.reminderDeleted, {
+        description: t.common.cancel,
+        revert: async () => {
+          if (deletedRem) {
+            setReminders((prev) => [...prev, deletedRem!]);
+            await db.saveReminder(deletedRem!);
+          }
+        },
+      });
+    },
+    [triggerToast, t]
+  );
+
+  const toggleReminderEnabled = useCallback(
+    async (id: string) => {
+      let remToSave: Reminder | null = null;
+      setReminders((prev) =>
+        prev.map((r) => {
+          if (r.id !== id) return r;
+          remToSave = { ...r, enabled: !r.enabled, updatedAt: Date.now() };
+          return remToSave;
+        })
+      );
+      if (remToSave) {
+        await db.saveReminder(remToSave);
+        triggerToast((remToSave as Reminder).enabled ? t.reminder.enabled : t.reminder.disabled);
+      }
     },
     [triggerToast, t]
   );
@@ -1118,7 +1252,8 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       newWorkspaceName?: string,
       importedSections?: Section[],
       importedSettings?: UserSettings,
-      importedActivity?: ActivityLog[]
+      importedActivity?: ActivityLog[],
+      importedReminders?: Reminder[]
     ) => {
       // Validate all workspace references so orphaned items safely fall back to Scratch
       const validWsIds = new Set(
@@ -1143,6 +1278,15 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         setWorkspaces(importedWorkspaces);
         setSections(rawSections);
         setItems(sanitizedItems);
+
+        if (importedReminders) {
+          const validItemIds = new Set(sanitizedItems.map((it) => it.id));
+          const sanitizedReminders = importedReminders.filter((r) => validItemIds.has(r.itemId));
+          await db.saveReminders(sanitizedReminders);
+          setReminders(sanitizedReminders);
+        } else {
+          setReminders([]);
+        }
 
         // Replace semantics for settings: restore if present, preserve current if absent (legacy)
         if (importedSettings) {
@@ -1179,19 +1323,40 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
           };
         });
 
-        const adjustedItems = importedItems.map((it) => ({
-          ...it,
-          id: generateId('item'),
-          workspaceId: ws.id,
-          sectionId: it.sectionId ? (sectionIdMap.get(it.sectionId) || null) : null,
-        }));
+        const itemIdMap = new Map<string, string>();
+        const adjustedItems = importedItems.map((it) => {
+          const newItemId = generateId('item');
+          itemIdMap.set(it.id, newItemId);
+          return {
+            ...it,
+            id: newItemId,
+            workspaceId: ws.id,
+            sectionId: it.sectionId ? (sectionIdMap.get(it.sectionId) || null) : null,
+          };
+        });
+
+        const newReminders: Reminder[] = (importedReminders || [])
+          .filter((r) => itemIdMap.has(r.itemId))
+          .map((r) => ({
+            ...r,
+            id: generateId('rem'),
+            itemId: itemIdMap.get(r.itemId)!,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }));
 
         await db.saveWorkspace(ws);
         await db.saveSections(newSections);
         await db.saveItems(adjustedItems);
+        if (newReminders.length > 0) {
+          await db.saveReminders(newReminders);
+        }
         setWorkspaces((prev) => [...prev, ws]);
         setSections((prev) => [...newSections, ...prev]);
         setItems((prev) => [...adjustedItems, ...prev]);
+        if (newReminders.length > 0) {
+          setReminders((prev) => [...newReminders, ...prev]);
+        }
         setActiveView({ type: 'workspace', workspaceId: ws.id });
       } else {
         // Merge mode: keep newer record if IDs conflict
@@ -1235,11 +1400,26 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         setWorkspaces(mergedWorkspaces);
         setSections(mergedSections);
         setItems(mergedItems);
+
+        if (importedReminders && importedReminders.length > 0) {
+          const validItemIds = new Set(mergedItems.map((it) => it.id));
+          const existingRemMap = new Map(reminders.map((r) => [r.id, r]));
+          for (const r of importedReminders) {
+            if (!validItemIds.has(r.itemId)) continue;
+            const existing = existingRemMap.get(r.id);
+            if (!existing || r.updatedAt > existing.updatedAt) {
+              existingRemMap.set(r.id, r);
+            }
+          }
+          const mergedReminders = Array.from(existingRemMap.values());
+          await db.saveReminders(mergedReminders);
+          setReminders(mergedReminders);
+        }
       }
 
       triggerToast(t.toast.itemsImported(importedItems.length));
     },
-    [items, workspaces, sections, triggerToast, t]
+    [items, workspaces, sections, reminders, triggerToast, t]
   );
 
   // Reset All (Sets hasInitialized to true so starter notes never re-seed!)
@@ -1250,6 +1430,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     setItems([]);
     setWorkspaces([]);
     setSections([]);
+    setReminders([]);
     setActivity([]);
     setCurrentSession(null);
     setCurrentWorkspaceId(null);
@@ -1293,6 +1474,9 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       setIsShortcutsOpen,
       isWorkspaceModalOpen,
       setIsWorkspaceModalOpen,
+      reminderModalItem,
+      openReminderModal,
+      closeReminderModal,
       addItem,
       createItem,
       updateItem,
@@ -1306,6 +1490,11 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       softDeleteItem,
       permanentlyDeleteItem,
       permanentlyDeleteItems,
+      reminders,
+      addReminder,
+      updateReminder,
+      deleteReminder,
+      toggleReminderEnabled,
       createSection,
       updateSection,
       toggleSectionCollapse,
@@ -1336,6 +1525,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       items,
       workspaces,
       sections,
+      reminders,
       settings,
       activity,
       activeView,
@@ -1351,6 +1541,9 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       isSettingsOpen,
       isShortcutsOpen,
       isWorkspaceModalOpen,
+      reminderModalItem,
+      openReminderModal,
+      closeReminderModal,
       addItem,
       createItem,
       updateItem,
@@ -1364,6 +1557,10 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       softDeleteItem,
       permanentlyDeleteItems,
       permanentlyDeleteItem,
+      addReminder,
+      updateReminder,
+      deleteReminder,
+      toggleReminderEnabled,
       createSection,
       updateSection,
       toggleSectionCollapse,

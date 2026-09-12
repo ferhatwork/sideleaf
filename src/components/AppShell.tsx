@@ -14,6 +14,7 @@ import { SearchModal } from './SearchModal';
 import { SettingsModal } from './SettingsModal';
 import { WorkspaceModal } from './WorkspaceModal';
 import { ShortcutsModal } from './ShortcutsModal';
+import { ReminderModal } from './ReminderModal';
 import { Toast } from './Toast';
 import { Workspace, Item } from '../types';
 import { generateExportData, getExportFilename, downloadJsonFile } from '../services/exportImport';
@@ -40,6 +41,8 @@ export const AppShell: React.FC = () => {
     setIsShortcutsOpen,
     isWorkspaceModalOpen,
     setIsWorkspaceModalOpen,
+    reminderModalItem,
+    closeReminderModal,
 
     // CRUD
     addItem,
@@ -190,21 +193,54 @@ export const AppShell: React.FC = () => {
 
   const activeWorkspaceId = activeView.type === 'workspace' ? activeView.workspaceId : null;
 
-  const handleSelectItemFromSearch = (item: Item) => {
-    if (item.status === 'archived') {
+  const navigateToItem = (targetItem: Item) => {
+    if (targetItem.status === 'archived') {
       setEphemeralRevealedSectionId(null);
       setActiveView({ type: 'archive' });
-    } else if (item.status === 'deleted') {
+    } else if (targetItem.status === 'deleted') {
       setEphemeralRevealedSectionId(null);
       setActiveView({ type: 'trash' });
-    } else if (item.workspaceId) {
-      setEphemeralRevealedSectionId(item.sectionId || null);
-      setActiveView({ type: 'workspace', workspaceId: item.workspaceId });
+    } else if (targetItem.workspaceId) {
+      setEphemeralRevealedSectionId(targetItem.sectionId || null);
+      setActiveView({ type: 'workspace', workspaceId: targetItem.workspaceId });
     } else {
       setEphemeralRevealedSectionId(null);
       setActiveView({ type: 'scratch' });
     }
+
+    setTimeout(() => {
+      const el = document.getElementById(`item-${targetItem.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-blue-500', 'transition-all');
+        setTimeout(() => {
+          el.classList.remove('ring-2', 'ring-blue-500');
+        }, 2000);
+      }
+    }, 150);
   };
+
+  const handleSelectItemFromSearch = (item: Item) => {
+    navigateToItem(item);
+  };
+
+  // Deep-linking from notification click or URL (?item=<id>)
+  useEffect(() => {
+    if (isLoading || items.length === 0) return;
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const itemId = params.get('item');
+    if (itemId) {
+      const target = items.find((i) => i.id === itemId);
+      if (target) {
+        navigateToItem(target);
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete('item');
+      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+    }
+  }, [isLoading, items]);
 
   const handleEmptyTrash = async () => {
     const trashIds = items.filter((i) => i.status === 'deleted').map((i) => i.id);
@@ -400,6 +436,12 @@ export const AppShell: React.FC = () => {
       <ShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      <ReminderModal
+        isOpen={!!reminderModalItem}
+        onClose={closeReminderModal}
+        item={reminderModalItem}
       />
 
       {/* Floating Toast with Undo */}

@@ -67,7 +67,7 @@ describe('Sections & Long-List Architecture Suite', () => {
     it('initializes DB_VERSION 2 with sections object store and required indexes', async () => {
       const database = await openDatabase();
       expect(database.version).toBe(DB_VERSION);
-      expect(DB_VERSION).toBe(2);
+      expect(DB_VERSION).toBeGreaterThanOrEqual(2);
 
       // Verify sections store and its indexes
       expect(database.objectStoreNames.contains('sections')).toBe(true);

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * Sideleaf - Build Info Generator
  * Generates dist/build-info.json and updates cache version in dist/sw.js.
@@ -23,10 +23,10 @@ try {
   if (pkg.version) version = pkg.version;
 } catch {}
 
-// Get git commit if available
+// Get git commit if available (full HEAD hash)
 let commit = null;
 try {
-  commit = execSync('git rev-parse --short HEAD', {
+  commit = execSync('git rev-parse HEAD', {
     cwd: rootDir,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore']
@@ -43,12 +43,7 @@ const buildInfo = {
 
 const buildInfoJson = JSON.stringify(buildInfo, null, 2) + '\n';
 
-// Write to public/ so dev server or next build has it
-try {
-  fs.writeFileSync(path.join(publicDir, 'build-info.json'), buildInfoJson, 'utf8');
-} catch {}
-
-// Write to dist/
+// Write build identity exclusively to dist/
 if (fs.existsSync(distDir)) {
   fs.writeFileSync(path.join(distDir, 'build-info.json'), buildInfoJson, 'utf8');
 
@@ -56,7 +51,7 @@ if (fs.existsSync(distDir)) {
   const distSwPath = path.join(distDir, 'sw.js');
   if (fs.existsSync(distSwPath)) {
     let swContent = fs.readFileSync(distSwPath, 'utf8');
-    const safeTag = builtAt.replace(/[:.]/g, '-');
+    const safeTag = commit ? commit.slice(0, 10) : builtAt.replace(/[:.]/g, '-');
     const cacheKey = `sideleaf-static-${version}-${safeTag}`;
     swContent = swContent.replace(
       /const CACHE_NAME = ['"][^'"]+['"];/,

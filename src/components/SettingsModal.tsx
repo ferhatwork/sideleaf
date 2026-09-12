@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UserSettings, Workspace, Item, ActivityLog, Section } from '../types';
+import { UserSettings, Workspace, Item, ActivityLog, Section, Reminder } from '../types';
 import { useSideleaf } from '../hooks/useSideleaf';
 import {
   generateExportData,
@@ -42,7 +42,8 @@ interface SettingsModalProps {
     newWorkspaceName?: string,
     importedSections?: Section[],
     importedSettings?: UserSettings,
-    importedActivity?: ActivityLog[]
+    importedActivity?: ActivityLog[],
+    importedReminders?: Reminder[]
   ) => Promise<void>;
   onResetAllData: () => Promise<void>;
 }
@@ -58,16 +59,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportData,
   onResetAllData,
 }) => {
-  const { t, locale, setLocale, canInstallPwa, installPwa, sections } = useSideleaf();
+  const { t, locale, setLocale, canInstallPwa, installPwa, sections, reminders } = useSideleaf();
   const [activeTab, setActiveTab] = useState<'appearance' | 'data' | 'keyboard' | 'about'>('appearance');
   const [importPreview, setImportPreview] = useState<{
     file: File;
     items: Item[];
     workspaces: Workspace[];
     sections?: Section[];
+    reminders?: Reminder[];
     settings?: UserSettings;
     activity?: ActivityLog[];
-    stats: { workspacesCount: number; itemsCount: number; sectionsCount?: number; activityCount: number };
+    stats: { workspacesCount: number; itemsCount: number; sectionsCount?: number; remindersCount?: number; activityCount: number };
     conflictingCount: number;
     exportedAt: string;
   } | null>(null);
@@ -92,7 +94,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   const handleExportJson = () => {
-    const data = generateExportData(workspaces, items, settings, activity, sections);
+    const data = generateExportData(workspaces, items, settings, activity, sections, reminders);
     downloadJsonFile(getExportFilename(), data);
   };
 
@@ -126,6 +128,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           items: result.data.items,
           workspaces: result.data.workspaces,
           sections: result.data.sections,
+          reminders: result.data.reminders,
           settings: result.data.settings,
           activity: result.data.activity,
           stats: result.stats,
@@ -149,7 +152,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       undefined,
       importPreview.sections,
       importPreview.settings,
-      importPreview.activity
+      importPreview.activity,
+      importPreview.reminders
     );
     setImportPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';

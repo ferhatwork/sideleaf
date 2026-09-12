@@ -1,8 +1,8 @@
-import { Item, Workspace, Section, UserSettings, ActivityLog } from '../types';
+import { Item, Workspace, Section, Reminder, UserSettings, ActivityLog } from '../types';
 
 // Primary Sideleaf Database
 export const DB_NAME = 'sideleaf_db';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 // Legacy Workpad Database (preserved for zero-data-loss migration)
 export const LEGACY_DB_NAME = 'workpad_db';
@@ -186,6 +186,13 @@ export function openDatabase(): Promise<IDBDatabase> {
           const actStore = db.createObjectStore('activity', { keyPath: 'id' });
           actStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
+
+        if (!db.objectStoreNames.contains('reminders')) {
+          const remStore = db.createObjectStore('reminders', { keyPath: 'id' });
+          remStore.createIndex('itemId', 'itemId', { unique: false });
+          remStore.createIndex('scheduledAt', 'scheduledAt', { unique: false });
+          remStore.createIndex('enabled', 'enabled', { unique: false });
+        }
       };
 
       request.onsuccess = async () => {
@@ -215,6 +222,7 @@ export function openDatabase(): Promise<IDBDatabase> {
 export const LS_ITEMS = 'sideleaf_ls_items';
 export const LS_WORKSPACES = 'sideleaf_ls_workspaces';
 export const LS_SECTIONS = 'sideleaf_ls_sections';
+export const LS_REMINDERS = 'sideleaf_ls_reminders';
 export const LS_SETTINGS = 'sideleaf_ls_settings';
 export const LS_ACTIVITY = 'sideleaf_ls_activity';
 
@@ -670,6 +678,204 @@ export const db = {
     }
   },
 
+  // --- Reminders ---
+  async getAllReminders(): Promise<Reminder[]> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          return resolve(safeLsGet<Reminder[]>(LS_REMINDERS, []));
+        }
+        const tx = idb.transaction('reminders', 'readonly');
+        const store = tx.objectStore('reminders');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      return safeLsGet<Reminder[]>(LS_REMINDERS, []);
+    }
+  },
+
+  async getRemindersByItem(itemId: string): Promise<Reminder[]> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          const list = safeLsGet<Reminder[]>(LS_REMINDERS, []);
+          return resolve(list.filter((r) => r.itemId === itemId));
+        }
+        const tx = idb.transaction('reminders', 'readonly');
+        const store = tx.objectStore('reminders');
+        const index = store.index('itemId');
+        const req = index.getAll(itemId);
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Reminder[]>(LS_REMINDERS, []);
+      return list.filter((r) => r.itemId === itemId);
+    }
+  },
+
+  async saveReminder(reminder: Reminder): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          const list = safeLsGet<Reminder[]>(LS_REMINDERS, []);
+          const idx = list.findIndex((r) => r.id === reminder.id);
+          if (idx >= 0) list[idx] = reminder;
+          else list.push(reminder);
+          safeLsSet(LS_REMINDERS, list);
+          return resolve();
+        }
+        const tx = idb.transaction('reminders', 'readwrite');
+        const store = tx.objectStore('reminders');
+        store.put(reminder);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+      });
+    } catch {
+      const list = safeLsGet<Reminder[]>(LS_REMINDERS, []);
+      const idx = list.findIndex((r) => r.id === reminder.id);
+      if (idx >= 0) list[idx] = reminder;
+      else list.push(reminder);
+      safeLsSet(LS_REMINDERS, list);
+    }
+  },
+
+  async saveReminders(reminders: Reminder[]): Promise<void> {
+    if (reminders.length === 0) return;
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          const list = safeLsGet<Reminder[]>(LS_REMINDERS, []);
+          const map = new Map(list.map((r) => [r.id, r]));
+          for (const r of reminders) {
+            map.set(r.id, r);
+          }
+          safeLsSet(LS_REMINDERS, Array.from(map.values()));
+          return resolve();
+        }
+        const tx = idb.transaction('reminders', 'readwrite');
+        const store = tx.objectStore('reminders');
+        for (const rem of reminders) {
+          store.put(rem);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Reminder[]>(LS_REMINDERS, []);
+      const map = new Map(list.map((r) => [r.id, r]));
+      for (const r of reminders) {
+        map.set(r.id, r);
+      }
+      safeLsSet(LS_REMINDERS, Array.from(map.values()));
+    }
+  },
+
+  async deleteReminder(id: string): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          const list = safeLsGet<Reminder[]>(LS_REMINDERS, []).filter((r) => r.id !== id);
+          safeLsSet(LS_REMINDERS, list);
+          return resolve();
+        }
+        const tx = idb.transaction('reminders', 'readwrite');
+        const store = tx.objectStore('reminders');
+        store.delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Reminder[]>(LS_REMINDERS, []).filter((r) => r.id !== id);
+      safeLsSet(LS_REMINDERS, list);
+    }
+  },
+
+  async deleteReminders(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          const list = safeLsGet<Reminder[]>(LS_REMINDERS, []).filter((r) => !idSet.has(r.id));
+          safeLsSet(LS_REMINDERS, list);
+          return resolve();
+        }
+        const tx = idb.transaction('reminders', 'readwrite');
+        const store = tx.objectStore('reminders');
+        for (const id of ids) {
+          store.delete(id);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Reminder[]>(LS_REMINDERS, []).filter((r) => !idSet.has(r.id));
+      safeLsSet(LS_REMINDERS, list);
+    }
+  },
+
+  async deleteRemindersByItem(itemId: string): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          const list = safeLsGet<Reminder[]>(LS_REMINDERS, []).filter((r) => r.itemId !== itemId);
+          safeLsSet(LS_REMINDERS, list);
+          return resolve();
+        }
+        const tx = idb.transaction('reminders', 'readwrite');
+        const store = tx.objectStore('reminders');
+        const index = store.index('itemId');
+        const req = index.getAllKeys(itemId);
+        req.onsuccess = () => {
+          const keys = req.result || [];
+          for (const key of keys) {
+            store.delete(key);
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Reminder[]>(LS_REMINDERS, []).filter((r) => r.itemId !== itemId);
+      safeLsSet(LS_REMINDERS, list);
+    }
+  },
+
+  async clearAllReminders(): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      await new Promise<void>((resolve, reject) => {
+        if (!idb.objectStoreNames.contains('reminders')) {
+          safeLsSet(LS_REMINDERS, []);
+          return resolve();
+        }
+        const tx = idb.transaction('reminders', 'readwrite');
+        tx.objectStore('reminders').clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {}
+    safeLsSet(LS_REMINDERS, []);
+  },
+
   async clearContentData(): Promise<void> {
     try {
       const idb = await openDatabase();
@@ -678,11 +884,17 @@ export const db = {
         if (idb.objectStoreNames.contains('sections')) {
           storeNames.push('sections');
         }
+        if (idb.objectStoreNames.contains('reminders')) {
+          storeNames.push('reminders');
+        }
         const tx = idb.transaction(storeNames, 'readwrite');
         tx.objectStore('items').clear();
         tx.objectStore('workspaces').clear();
         if (idb.objectStoreNames.contains('sections')) {
           tx.objectStore('sections').clear();
+        }
+        if (idb.objectStoreNames.contains('reminders')) {
+          tx.objectStore('reminders').clear();
         }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
@@ -694,6 +906,7 @@ export const db = {
     safeLsSet(LS_ITEMS, []);
     safeLsSet(LS_WORKSPACES, []);
     safeLsSet(LS_SECTIONS, []);
+    safeLsSet(LS_REMINDERS, []);
     try {
       localStorage.removeItem('workpad_ls_items');
       localStorage.removeItem('workpad_ls_workspaces');
@@ -708,12 +921,18 @@ export const db = {
         if (idb.objectStoreNames.contains('sections')) {
           storeNames.push('sections');
         }
+        if (idb.objectStoreNames.contains('reminders')) {
+          storeNames.push('reminders');
+        }
         const tx = idb.transaction(storeNames, 'readwrite');
         tx.objectStore('items').clear();
         tx.objectStore('workspaces').clear();
         tx.objectStore('activity').clear();
         if (idb.objectStoreNames.contains('sections')) {
           tx.objectStore('sections').clear();
+        }
+        if (idb.objectStoreNames.contains('reminders')) {
+          tx.objectStore('reminders').clear();
         }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
@@ -725,6 +944,7 @@ export const db = {
     safeLsSet(LS_ITEMS, []);
     safeLsSet(LS_WORKSPACES, []);
     safeLsSet(LS_SECTIONS, []);
+    safeLsSet(LS_REMINDERS, []);
     safeLsSet(LS_ACTIVITY, []);
     try {
       localStorage.removeItem('workpad_ls_items');
