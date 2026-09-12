@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Workspace } from '../types';
 import { X, FolderPlus } from 'lucide-react';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   editingWorkspace,
   onUpdateWorkspace,
 }) => {
+  const { t } = useSideleaf();
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3b82f6');
   const [description, setDescription] = useState('');
@@ -111,12 +113,12 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
           <div className="flex items-center gap-2">
             <FolderPlus className="w-4 h-4 text-blue-500" />
             <h2 id="workspace-modal-title" className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              {editingWorkspace ? 'Edit Workspace' : 'New Workspace'}
+              {editingWorkspace ? t.workspace.editWorkspace : t.workspace.newWorkspace}
             </h2>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close workspace modal"
+            aria-label={t.workspace.closeModal}
             className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded focus-ring"
           >
             <X className="w-4 h-4" />
@@ -126,14 +128,14 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
-              Workspace Name
+              {t.workspace.workspaceName}
             </label>
             <input
               ref={inputRef}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Website, Client A, Research"
+              placeholder={t.workspace.workspaceNamePlaceholder}
               className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus-ring"
               required
             />
@@ -141,7 +143,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
-              Color Accent
+              {t.workspace.colorAccent}
             </label>
             <div className="flex items-center gap-2">
               {PRESET_COLORS.map((c) => (
@@ -149,7 +151,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  aria-label={`Select color ${c}`}
+                  aria-label={t.workspace.selectColor(c)}
                   className={`w-6 h-6 rounded-full transition-transform focus-ring ${
                     color === c ? 'scale-125 ring-2 ring-offset-2 ring-neutral-400 dark:ring-offset-sideleaf-dark-surface' : 'hover:scale-110'
                   }`}
@@ -161,13 +163,13 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
-              Description (Optional)
+              {t.workspace.descriptionOptional}
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief context for this workspace"
+              placeholder={t.workspace.descriptionPlaceholder}
               className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus-ring"
             />
           </div>
@@ -178,14 +180,14 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
               onClick={onClose}
               className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
             >
-              Cancel
+              {t.common.cancel}
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
               className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium focus-ring"
             >
-              {editingWorkspace ? 'Save Changes' : 'Create Workspace'}
+              {editingWorkspace ? t.workspace.saveChanges : t.workspace.createWorkspace}
             </button>
           </div>
         </form>

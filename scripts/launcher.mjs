@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Sideleaf - Cross-Platform Node.js Launcher
- * Zero-dependency static server strictly bound to 127.0.0.1
+ * Zero-dependency static server strictly bound to 127.0.0.1:47321
  */
 
 import http from 'node:http';
@@ -9,6 +9,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
+
+const PORT = 47321;
+const HOST = '127.0.0.1';
+const ORIGIN = `http://${HOST}:${PORT}`;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,12 +27,62 @@ if (!fs.existsSync(distDir)) {
 }
 
 const indexPath = path.join(distDir, 'index.html');
+const buildInfoPath = path.join(distDir, 'build-info.json');
 
 if (!fs.existsSync(indexPath)) {
   console.error('\n  \x1b[31mSideleaf could not start.\x1b[0m');
   console.error(`  \x1b[33mProduction build not found in: ${distDir}\x1b[0m`);
   console.error('  Please run "npm run build" first before launching.\n');
   process.exit(1);
+}
+
+// Read build metadata if available
+let buildInfo = null;
+if (fs.existsSync(buildInfoPath)) {
+  try {
+    buildInfo = JSON.parse(fs.readFileSync(buildInfoPath, 'utf8'));
+  } catch {}
+}
+const buildHeaderVal = (buildInfo && buildInfo.builtAt) ? buildInfo.builtAt : 'unknown';
+
+// Runtime metadata path (%LOCALAPPDATA%\Sideleaf\runtime.json or ~/.sideleaf/runtime.json)
+function getRuntimeDir() {
+  if (process.platform === 'win32') {
+    return process.env.LOCALAPPDATA
+      ? path.join(process.env.LOCALAPPDATA, 'Sideleaf')
+      : path.join(process.env.USERPROFILE || '', '.sideleaf');
+  }
+  return path.join(process.env.HOME || '', '.sideleaf');
+}
+
+const runtimeDir = getRuntimeDir();
+const runtimeJsonPath = path.join(runtimeDir, 'runtime.json');
+
+function saveRuntimeMetadata() {
+  try {
+    if (!fs.existsSync(runtimeDir)) {
+      fs.mkdirSync(runtimeDir, { recursive: true });
+    }
+    const meta = {
+      pid: process.pid,
+      port: PORT,
+      host: HOST,
+      root: rootDir,
+      startedAt: new Date().toISOString(),
+      version: buildInfo?.version || '1.0.0',
+      builtAt: buildInfo?.builtAt || null,
+      commit: buildInfo?.commit || null
+    };
+    fs.writeFileSync(runtimeJsonPath, JSON.stringify(meta, null, 2), 'utf8');
+  } catch {}
+}
+
+function removeRuntimeMetadata() {
+  try {
+    if (fs.existsSync(runtimeJsonPath)) {
+      fs.unlinkSync(runtimeJsonPath);
+    }
+  } catch {}
 }
 
 const MIME_TYPES = {
@@ -102,13 +156,21 @@ const server = http.createServer((req, res) => {
     const headers = {
       'Content-Type': contentType,
       'Content-Length': stat.size,
-      'X-Content-Type-Options': 'nosniff'
+      'X-Content-Type-Options': 'nosniff',
+      'X-Sideleaf-Server': '1',
+      'X-Sideleaf-Build': buildHeaderVal
     };
 
-    if (ext === '.html' || ext === '.htm') {
-      headers['Cache-Control'] = 'no-cache';
+    const isDynamic =
+      ext === '.html' ||
+      ext === '.htm' ||
+      targetPath.endsWith('sw.js') ||
+      targetPath.endsWith('build-info.json');
+
+    if (isDynamic) {
+      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
     } else {
-      headers['Cache-Control'] = 'public, max-age=31536000';
+      headers['Cache-Control'] = 'public, max-age=31536000, immutable';
     }
 
     if (req.method === 'HEAD') {
@@ -134,20 +196,33 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(0, '127.0.0.1', () => {
-  const addr = server.address();
-  const port = addr.port;
-  const url = `http://127.0.0.1:${port}/`;
+const args = process.argv.slice(2);
+const noBrowser = args.includes('--no-browser') || args.includes('-NoBrowser');
+
+server.listen(PORT, HOST, () => {
+  saveRuntimeMetadata();
+  const url = `${ORIGIN}/`;
 
   console.log(`Sideleaf is running locally at ${url}`);
+  if (buildInfo?.builtAt) {
+    console.log(`Build: ${buildInfo.builtAt} (${buildInfo.commit || 'no-git'})`);
+  }
   console.log('Press Ctrl+C to close this window when done.');
 
-  openBrowser(url);
+  if (!noBrowser) {
+    openBrowser(url);
+  }
 });
 
 server.on('error', (err) => {
-  console.error('\n  \x1b[31mSideleaf could not start.\x1b[0m');
-  console.error(`  \x1b[33mError: ${err.message}\x1b[0m\n`);
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n  \x1b[31mPort ${PORT} is already in use.\x1b[0m`);
+    console.error(`  Sideleaf requires fixed loopback port ${PORT} to maintain a deterministic origin and data isolation.`);
+    console.error(`  Please stop the running instance or free port ${PORT} before restarting.\n`);
+  } else {
+    console.error('\n  \x1b[31mSideleaf could not start.\x1b[0m');
+    console.error(`  \x1b[33mError: ${err.message}\x1b[0m\n`);
+  }
   process.exit(1);
 });
 
@@ -167,6 +242,7 @@ function openBrowser(url) {
 }
 
 const shutdown = () => {
+  removeRuntimeMetadata();
   server.close(() => {
     process.exit(0);
   });
@@ -174,3 +250,7 @@ const shutdown = () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+process.on('exit', () => {
+  removeRuntimeMetadata();
+});
+

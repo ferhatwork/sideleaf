@@ -145,9 +145,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
                 className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900 text-xs text-neutral-600 dark:text-neutral-400 inline-flex items-center gap-1.5 focus-ring"
               >
                 <span>
-                  {locale === 'tr'
-                    ? `Daha fazla göster (${scratchItems.length - visibleCount} kaldı)`
-                    : `Show more (${scratchItems.length - visibleCount} remaining)`}
+                  {t.common.showMoreRemaining(scratchItems.length - visibleCount)}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>

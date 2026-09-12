@@ -1,4 +1,4 @@
-import { SideleafExportData, Workspace, Item, UserSettings, ActivityLog } from '../types';
+import { SideleafExportData, Workspace, Item, Section, UserSettings, ActivityLog } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -7,6 +7,7 @@ export interface ValidationResult {
   stats?: {
     workspacesCount: number;
     itemsCount: number;
+    sectionsCount?: number;
     activityCount: number;
   };
 }
@@ -56,14 +57,38 @@ export function validateSideleafData(raw: unknown): ValidationResult {
     }
   }
 
+  // Validate sections structure if present (backward compatibility: optional)
+  if (candidate.sections !== undefined) {
+    if (!Array.isArray(candidate.sections)) {
+      return { valid: false, error: 'Invalid format: "sections" must be an array.' };
+    }
+    for (let i = 0; i < candidate.sections.length; i++) {
+      const sec = candidate.sections[i];
+      if (!sec.id || typeof sec.id !== 'string' || !sec.workspaceId || typeof sec.workspaceId !== 'string' || !sec.name || typeof sec.name !== 'string') {
+        return { valid: false, error: `Section at index ${i} is missing required fields (id, workspaceId, name).` };
+      }
+    }
+  }
+
+  const stats: {
+    workspacesCount: number;
+    itemsCount: number;
+    sectionsCount?: number;
+    activityCount: number;
+  } = {
+    workspacesCount: candidate.workspaces.length,
+    itemsCount: candidate.items.length,
+    activityCount: Array.isArray(candidate.activity) ? candidate.activity.length : 0,
+  };
+
+  if (candidate.sections !== undefined) {
+    stats.sectionsCount = candidate.sections.length;
+  }
+
   return {
     valid: true,
     data: candidate as SideleafExportData,
-    stats: {
-      workspacesCount: candidate.workspaces.length,
-      itemsCount: candidate.items.length,
-      activityCount: Array.isArray(candidate.activity) ? candidate.activity.length : 0,
-    },
+    stats,
   };
 }
 
@@ -74,7 +99,8 @@ export function generateExportData(
   workspaces: Workspace[],
   items: Item[],
   settings?: UserSettings,
-  activity?: ActivityLog[]
+  activity?: ActivityLog[],
+  sections?: Section[]
 ): SideleafExportData {
   return {
     schema: 'sideleaf-v1',
@@ -82,6 +108,7 @@ export function generateExportData(
     exportedAt: new Date().toISOString(),
     workspaces: [...workspaces],
     items: [...items],
+    sections: sections ? [...sections] : undefined,
     settings: settings ? { ...settings } : undefined,
     activity: activity ? [...activity] : undefined,
   };
@@ -105,14 +132,8 @@ export function downloadJsonFile(filename: string, data: object): void {
   URL.revokeObjectURL(url);
 }
 
-export function exportWorkspaceToMarkdown(
-  workspaceName: string,
-  items: Item[]
-): string {
+function renderMarkdownItems(items: Item[]): string[] {
   const lines: string[] = [];
-  lines.push(`# ${workspaceName}`);
-  lines.push(`Exported on ${new Date().toLocaleDateString()}\n`);
-
   for (const item of items) {
     if (item.status === 'deleted') continue;
 
@@ -142,6 +163,38 @@ export function exportWorkspaceToMarkdown(
         lines.push('');
         break;
     }
+  }
+  return lines;
+}
+
+export function exportWorkspaceToMarkdown(
+  workspaceName: string,
+  items: Item[],
+  sections?: Section[]
+): string {
+  const lines: string[] = [];
+  lines.push(`# ${workspaceName}`);
+  lines.push(`Exported on ${new Date().toLocaleDateString()}\n`);
+
+  if (!sections || sections.length === 0) {
+    lines.push(...renderMarkdownItems(items));
+    return lines.join('\n');
+  }
+
+  // Sort sections by order
+  const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+
+  // First unsectioned items
+  const unsectioned = items.filter((i) => !i.sectionId);
+  if (unsectioned.length > 0) {
+    lines.push(...renderMarkdownItems(unsectioned));
+  }
+
+  // Then sectioned items
+  for (const sec of sortedSections) {
+    const secItems = items.filter((i) => i.sectionId === sec.id);
+    lines.push(`\n## ${sec.name}\n`);
+    lines.push(...renderMarkdownItems(secItems));
   }
 
   return lines.join('\n');

@@ -10,9 +10,20 @@ export interface ItemSource {
   capturedAt: number;
 }
 
+export interface Section {
+  id: string;
+  workspaceId: string;
+  name: string;
+  order: number;
+  collapsed?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Item {
   id: string;
   workspaceId: string | null; // null means scratch / unassigned
+  sectionId?: string | null; // null or undefined means unsectioned
   type: ItemType;
   content: string;
   checked?: boolean; // For checklist items
@@ -39,14 +50,17 @@ export interface CreateItemParams {
   content: string;
   type?: ItemType;
   workspaceId?: string | null;
+  sectionId?: string | null;
   checked?: boolean;
   sourceUrl?: string;
+  sourceTitle?: string;
 }
 
 export interface UpdateItemParams {
   content?: string;
   type?: ItemType;
   workspaceId?: string | null;
+  sectionId?: string | null;
   checked?: boolean;
   status?: ItemStatus;
   tags?: string[];
@@ -69,11 +83,14 @@ export interface ApplicationCommands {
   setCurrentWorkspace: (workspaceId: string | null) => void;
 }
 
+export type WorkspaceViewMode = 'normal' | 'compact';
+
 export interface Workspace {
   id: string;
   name: string;
   color?: string;
   description?: string;
+  viewMode?: WorkspaceViewMode;
   createdAt: number;
   updatedAt: number;
   isArchived?: boolean;
@@ -115,6 +132,7 @@ export interface SideleafExportData {
   exportedAt: string;
   workspaces: Workspace[];
   items: Item[];
+  sections?: Section[];
   settings?: UserSettings;
   activity?: ActivityLog[];
 }
@@ -134,4 +152,16 @@ export interface SearchResult {
   score: number;
   matchedFields: string[];
   matchedSnippet: string;
+}
+
+export interface ParsedLinkItem {
+  url: string;
+  title?: string;
+  domain?: string;
+}
+
+export interface BulkParseResult {
+  isMultiLink: boolean;
+  links: ParsedLinkItem[];
+  originalText: string;
 }

@@ -282,10 +282,10 @@ describe('Sideleaf Migration Test Suite', () => {
       });
       expect(flag).toBe(true);
 
+      sideleafDb.close();
+
       const allItems = await db.getAllItems();
       expect(allItems).toHaveLength(mockItems.length);
-
-      sideleafDb.close();
     });
 
     it('is idempotent: running migration multiple times does not overwrite newer data in sideleaf_db', async () => {

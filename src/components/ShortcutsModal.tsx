@@ -8,7 +8,7 @@ interface ShortcutsModalProps {
 }
 
 export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
-  const { t, locale } = useSideleaf();
+  const { t } = useSideleaf();
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -100,9 +100,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         </div>
 
         <div className="px-5 py-3 bg-neutral-50 dark:bg-neutral-900/40 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400 text-center">
-          {locale === 'tr'
-            ? 'Önce klavye: fareye uzanmadan düşüncelerinizi anında yakalayın.'
-            : 'Keyboard-first design: capture thoughts without reaching for a mouse.'}
+          {t.shortcuts.shortcutsFooter}
         </div>
       </div>
     </div>

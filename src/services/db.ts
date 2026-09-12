@@ -1,8 +1,8 @@
-import { Item, Workspace, UserSettings, ActivityLog } from '../types';
+import { Item, Workspace, Section, UserSettings, ActivityLog } from '../types';
 
 // Primary Sideleaf Database
 export const DB_NAME = 'sideleaf_db';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 // Legacy Workpad Database (preserved for zero-data-loss migration)
 export const LEGACY_DB_NAME = 'workpad_db';
@@ -155,9 +155,22 @@ export function openDatabase(): Promise<IDBDatabase> {
         if (!db.objectStoreNames.contains('items')) {
           const itemStore = db.createObjectStore('items', { keyPath: 'id' });
           itemStore.createIndex('workspaceId', 'workspaceId', { unique: false });
+          itemStore.createIndex('sectionId', 'sectionId', { unique: false });
           itemStore.createIndex('status', 'status', { unique: false });
           itemStore.createIndex('updatedAt', 'updatedAt', { unique: false });
           itemStore.createIndex('type', 'type', { unique: false });
+        } else {
+          const itemStore = (event.target as IDBOpenDBRequest).transaction?.objectStore('items');
+          if (itemStore && !itemStore.indexNames.contains('sectionId')) {
+            itemStore.createIndex('sectionId', 'sectionId', { unique: false });
+          }
+        }
+
+        if (!db.objectStoreNames.contains('sections')) {
+          const secStore = db.createObjectStore('sections', { keyPath: 'id' });
+          secStore.createIndex('workspaceId', 'workspaceId', { unique: false });
+          secStore.createIndex('order', 'order', { unique: false });
+          secStore.createIndex('updatedAt', 'updatedAt', { unique: false });
         }
 
         if (!db.objectStoreNames.contains('workspaces')) {
@@ -201,6 +214,7 @@ export function openDatabase(): Promise<IDBDatabase> {
 // Sideleaf LocalStorage Keys
 export const LS_ITEMS = 'sideleaf_ls_items';
 export const LS_WORKSPACES = 'sideleaf_ls_workspaces';
+export const LS_SECTIONS = 'sideleaf_ls_sections';
 export const LS_SETTINGS = 'sideleaf_ls_settings';
 export const LS_ACTIVITY = 'sideleaf_ls_activity';
 
@@ -249,6 +263,11 @@ export function _resetDbForTests(): void {
   }
   dbPromise = null;
   isIdbSupported = typeof indexedDB !== 'undefined';
+}
+
+export function _setIndexedDBSupportedForTests(supported: boolean): void {
+  _resetDbForTests();
+  isIdbSupported = supported;
 }
 
 export const db = {
@@ -424,9 +443,26 @@ export const db = {
     try {
       const idb = await openDatabase();
       return await new Promise((resolve, reject) => {
-        const tx = idb.transaction('workspaces', 'readwrite');
+        const storeNames = idb.objectStoreNames.contains('sections')
+          ? ['workspaces', 'sections']
+          : ['workspaces'];
+        const tx = idb.transaction(storeNames, 'readwrite');
         const store = tx.objectStore('workspaces');
         store.delete(id);
+
+        if (idb.objectStoreNames.contains('sections')) {
+          const secStore = tx.objectStore('sections');
+          const idx = secStore.index('workspaceId');
+          const req = idx.openCursor(IDBKeyRange.only(id));
+          req.onsuccess = (e) => {
+            const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+            if (cursor) {
+              cursor.delete();
+              cursor.continue();
+            }
+          };
+        }
+
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error);
@@ -434,6 +470,8 @@ export const db = {
     } catch {
       const list = safeLsGet<Workspace[]>(LS_WORKSPACES, []).filter((w) => w.id !== id);
       safeLsSet(LS_WORKSPACES, list);
+      const secList = safeLsGet<Section[]>(LS_SECTIONS, []).filter((s) => s.workspaceId !== id);
+      safeLsSet(LS_SECTIONS, secList);
     }
   },
 
@@ -515,14 +553,168 @@ export const db = {
     }
   },
 
+  async restoreActivity(activities: ActivityLog[]): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      await new Promise<void>((resolve, reject) => {
+        const tx = idb.transaction('activity', 'readwrite');
+        const store = tx.objectStore('activity');
+        store.clear();
+        for (const act of activities) {
+          store.put(act);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      safeLsSet(LS_ACTIVITY, activities.slice(0, 200));
+    }
+  },
+
+  async getAllSections(): Promise<Section[]> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('sections', 'readonly');
+        const store = tx.objectStore('sections');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      return safeLsGet<Section[]>(LS_SECTIONS, []);
+    }
+  },
+
+  async saveSection(section: Section): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('sections', 'readwrite');
+        const store = tx.objectStore('sections');
+        store.put(section);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Section[]>(LS_SECTIONS, []);
+      const idx = list.findIndex((s) => s.id === section.id);
+      if (idx >= 0) list[idx] = section;
+      else list.push(section);
+      safeLsSet(LS_SECTIONS, list);
+    }
+  },
+
+  async saveSections(sections: Section[]): Promise<void> {
+    if (sections.length === 0) return;
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('sections', 'readwrite');
+        const store = tx.objectStore('sections');
+        for (const s of sections) {
+          store.put(s);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const existing = safeLsGet<Section[]>(LS_SECTIONS, []);
+      const map = new Map(existing.map((s) => [s.id, s]));
+      for (const s of sections) {
+        map.set(s.id, s);
+      }
+      safeLsSet(LS_SECTIONS, Array.from(map.values()));
+    }
+  },
+
+  async deleteSection(id: string): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('sections', 'readwrite');
+        const store = tx.objectStore('sections');
+        store.delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Section[]>(LS_SECTIONS, []).filter((s) => s.id !== id);
+      safeLsSet(LS_SECTIONS, list);
+    }
+  },
+
+  async deleteSections(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('sections', 'readwrite');
+        const store = tx.objectStore('sections');
+        for (const id of ids) {
+          store.delete(id);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<Section[]>(LS_SECTIONS, []).filter((s) => !idSet.has(s.id));
+      safeLsSet(LS_SECTIONS, list);
+    }
+  },
+
+  async clearContentData(): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      await new Promise<void>((resolve, reject) => {
+        const storeNames: string[] = ['items', 'workspaces'];
+        if (idb.objectStoreNames.contains('sections')) {
+          storeNames.push('sections');
+        }
+        const tx = idb.transaction(storeNames, 'readwrite');
+        tx.objectStore('items').clear();
+        tx.objectStore('workspaces').clear();
+        if (idb.objectStoreNames.contains('sections')) {
+          tx.objectStore('sections').clear();
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {}
+
+    // Clear content keys without touching activity or user settings
+    safeLsSet(LS_ITEMS, []);
+    safeLsSet(LS_WORKSPACES, []);
+    safeLsSet(LS_SECTIONS, []);
+    try {
+      localStorage.removeItem('workpad_ls_items');
+      localStorage.removeItem('workpad_ls_workspaces');
+    } catch {}
+  },
+
   async clearAllData(): Promise<void> {
     try {
       const idb = await openDatabase();
       await new Promise<void>((resolve, reject) => {
-        const tx = idb.transaction(['items', 'workspaces', 'activity'], 'readwrite');
+        const storeNames: string[] = ['items', 'workspaces', 'activity'];
+        if (idb.objectStoreNames.contains('sections')) {
+          storeNames.push('sections');
+        }
+        const tx = idb.transaction(storeNames, 'readwrite');
         tx.objectStore('items').clear();
         tx.objectStore('workspaces').clear();
         tx.objectStore('activity').clear();
+        if (idb.objectStoreNames.contains('sections')) {
+          tx.objectStore('sections').clear();
+        }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error);
@@ -532,6 +724,7 @@ export const db = {
     // Always clear both modern Sideleaf and legacy LocalStorage fallback keys
     safeLsSet(LS_ITEMS, []);
     safeLsSet(LS_WORKSPACES, []);
+    safeLsSet(LS_SECTIONS, []);
     safeLsSet(LS_ACTIVITY, []);
     try {
       localStorage.removeItem('workpad_ls_items');

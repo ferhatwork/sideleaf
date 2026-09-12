@@ -9,5 +9,9 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
-  }
+  },
+  esbuild: {
+    legalComments: 'none',
+    treeShaking: true,
+  },
 });

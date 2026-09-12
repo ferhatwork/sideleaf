@@ -142,8 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={onOpenNewWorkspace}
                 className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors focus-ring"
-                title={t.workspace.editWorkspace}
-                aria-label={t.workspace.editWorkspace}
+                title={t.workspace.newWorkspace}
+                aria-label={t.workspace.newWorkspace}
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -178,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           />
                           <span className="truncate">{ws.name}</span>
                           {isActive && (
-                            <span className="text-[9px] text-blue-500 font-bold ml-0.5" title="Active">
+                            <span className="text-[9px] text-blue-500 font-bold ml-0.5" title={t.common.activeStatus}>
                               ●
                             </span>
                           )}
@@ -197,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           setActiveMenuWsId(isMenuOpen ? null : ws.id);
                         }}
                         className="absolute right-2 top-1.5 p-0.5 rounded opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-opacity focus-ring"
-                        aria-label={`Options for workspace ${ws.name}`}
+                        aria-label={t.workspace.workspaceOptions(ws.name)}
                       >
                         <MoreHorizontal className="w-3.5 h-3.5" />
                       </button>

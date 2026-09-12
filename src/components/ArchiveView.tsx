@@ -50,7 +50,7 @@ export const ArchiveView: React.FC<ArchiveViewProps> = ({
           </p>
         </div>
         <span className="text-xs font-mono text-neutral-400">
-          {archivedItems.length} {locale === 'tr' ? 'öğe' : 'items'}
+          {archivedItems.length} {t.archive.itemCount}
         </span>
       </div>
 

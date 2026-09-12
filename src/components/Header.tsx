@@ -66,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onToggleMobileSidebar}
           className="md:hidden p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-ring"
-          aria-label="Open Navigation Menu"
+          aria-label={t.common.openNavigationMenu}
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -117,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
           title={t.settings.localGuarantee}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" aria-hidden="true" />
-          <span className="font-mono text-[11px]">{locale === 'tr' ? 'Yerel' : 'Local'}</span>
+          <span className="font-mono text-[11px]">{t.common.local}</span>
         </div>
 
         {/* Quick Language Switcher (TR / EN pill) */}
@@ -125,8 +125,8 @@ export const Header: React.FC<HeaderProps> = ({
           type="button"
           onClick={() => setLocale(locale === 'tr' ? 'en' : 'tr')}
           className="px-2 py-1 rounded-md text-xs font-mono font-medium border border-neutral-200/80 dark:border-neutral-700 bg-neutral-50/70 dark:bg-neutral-800/70 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors focus-ring flex items-center gap-1"
-          aria-label={`Dil değiştir / Switch language. Mevcut / Current: ${locale.toUpperCase()}`}
-          title={locale === 'tr' ? 'Switch to English' : "Türkçe'ye geç"}
+          aria-label={t.common.switchLanguage(locale === 'tr' ? 'en' : 'tr')}
+          title={t.common.switchLanguage(locale === 'tr' ? 'en' : 'tr')}
         >
           <span className={locale === 'tr' ? 'font-bold text-blue-600 dark:text-blue-400' : 'text-neutral-400 dark:text-neutral-500'}>
             TR
@@ -171,11 +171,11 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenQuickCapture}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:hover:bg-white text-white dark:text-neutral-900 text-xs font-medium transition-colors shadow-xs focus-ring"
-          title={`${locale === 'tr' ? 'Hızlı Yakala' : 'Quick Capture'} (Ctrl+Space)`}
-          aria-label={`${locale === 'tr' ? 'Hızlı Yakala' : 'Quick Capture'} (Ctrl+Space)`}
+          title={`${t.capture.quickCaptureTitle} (Ctrl+Space)`}
+          aria-label={`${t.capture.quickCaptureTitle} (Ctrl+Space)`}
         >
           <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{locale === 'tr' ? 'Yakala' : 'Capture'}</span>
+          <span className="hidden sm:inline">{t.common.capture}</span>
           <kbd className="hidden md:inline px-1 py-0.2 bg-neutral-700 dark:bg-neutral-200 text-white dark:text-neutral-900 rounded text-[9px] font-mono">
             Ctrl+Space
           </kbd>

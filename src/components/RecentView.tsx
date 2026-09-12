@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityLog, Item, Workspace } from '../types';
-import { formatTimeAgo, formatDateTime } from '../utils/format';
+import { formatTimeAgo, formatLocalizedDateTime } from '../utils/format';
 import { Clock, CheckCircle2, FileEdit, FolderInput, Archive, Trash2, PlusCircle } from 'lucide-react';
 import { useSideleaf } from '../hooks/useSideleaf';
 
@@ -36,6 +36,22 @@ export const RecentView: React.FC<RecentViewProps> = ({
       default:
         return <Clock className="w-3.5 h-3.5 text-neutral-400" />;
     }
+  };
+
+  const getLocalizedActionDetail = (act: ActivityLog) => {
+    if (act.action === 'capture') return t.recent.actionCapture;
+    if (act.action === 'toggle_task') {
+      if (act.details?.toLowerCase().includes('incomp') || act.details?.toLowerCase().includes('tamamlanma')) {
+        return t.recent.actionIncomplete;
+      }
+      return t.recent.actionCompleted;
+    }
+    if (act.action === 'convert_task') return t.recent.actionConvertTask;
+    if (act.action === 'move_workspace') return t.recent.actionMoveWorkspace;
+    if (act.action === 'archive') return t.recent.actionArchive;
+    if (act.action === 'delete') return t.recent.actionDelete;
+    if (act.action === 'edit') return t.recent.actionEdit;
+    return act.details;
   };
 
   const itemMap = new Map(items.map((i) => [i.id, i]));
@@ -86,7 +102,7 @@ export const RecentView: React.FC<RecentViewProps> = ({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                      {act.details}
+                      {getLocalizedActionDetail(act)}
                     </span>
                     <div className="flex items-center gap-2">
                       {linkedWs && (
@@ -102,7 +118,7 @@ export const RecentView: React.FC<RecentViewProps> = ({
                       )}
                       <span
                         className="text-[11px] text-neutral-400 font-mono flex-shrink-0"
-                        title={formatDateTime(act.timestamp)}
+                        title={formatLocalizedDateTime(act.timestamp, locale)}
                       >
                         {formatTimeAgo(act.timestamp, locale)}
                       </span>

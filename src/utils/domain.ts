@@ -42,6 +42,7 @@ export function createItemRecord(
     const targetUrl = params.sourceUrl || urls[0];
     source = {
       url: targetUrl,
+      title: params.sourceTitle,
       domain: extractDomain(targetUrl) || undefined,
       capturedAt: now,
     };
@@ -57,6 +58,7 @@ export function createItemRecord(
   return {
     id: generateId('item'),
     workspaceId,
+    sectionId: params.sectionId ?? null,
     type: determinedType,
     content,
     checked: params.checked ?? (determinedType === 'checklist' ? false : undefined),
@@ -137,4 +139,44 @@ export function updateWorkSession(
     lastActiveAt: now,
     itemCount: isItemTouch ? currentSession.itemCount + 1 : currentSession.itemCount,
   };
+}
+
+/**
+ * Toggles selection for a group of item IDs.
+ * If all target IDs are currently selected, deselects them.
+ * Otherwise, adds all target IDs to the selected set.
+ */
+export function toggleGroupSelectionState(
+  prevSelected: Set<string>,
+  targetIds: string[]
+): Set<string> {
+  if (!targetIds || targetIds.length === 0) return prevSelected;
+  const next = new Set(prevSelected);
+  const allSelected = targetIds.every((id) => next.has(id));
+  if (allSelected) {
+    for (const id of targetIds) {
+      next.delete(id);
+    }
+  } else {
+    for (const id of targetIds) {
+      next.add(id);
+    }
+  }
+  return next;
+}
+
+/**
+ * Reconciles selection state against currently valid active/visible items,
+ * ensuring deleted, archived, or filtered-out items are pruned.
+ */
+export function reconcileSelectionState(
+  prevSelected: Set<string>,
+  validIds: Iterable<string>
+): Set<string> {
+  const validSet = validIds instanceof Set ? validIds : new Set(validIds);
+  const next = new Set<string>();
+  for (const id of prevSelected) {
+    if (validSet.has(id)) next.add(id);
+  }
+  return next.size === prevSelected.size ? prevSelected : next;
 }

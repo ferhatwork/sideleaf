@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo, u
 import {
   Item,
   Workspace,
+  Section,
   UserSettings,
   Locale,
   ActivityLog,
@@ -37,6 +38,7 @@ interface ExtendedUserSettings extends UserSettings {
 interface SideleafContextType extends ApplicationCommands {
   items: Item[];
   workspaces: Workspace[];
+  sections: Section[];
   settings: ExtendedUserSettings;
   activity: ActivityLog[];
   activeView: ActiveView;
@@ -76,6 +78,19 @@ interface SideleafContextType extends ApplicationCommands {
   permanentlyDeleteItem: (id: string) => Promise<void>;
   permanentlyDeleteItems: (ids: string[]) => Promise<void>;
 
+  // Sections & Bulk
+  createSection: (workspaceId: string, name: string) => Promise<Section>;
+  updateSection: (id: string, updates: Partial<Section>) => Promise<void>;
+  toggleSectionCollapse: (id: string) => Promise<void>;
+  deleteSection: (id: string) => Promise<void>;
+  reorderSections: (workspaceId: string, sectionIds: string[]) => Promise<void>;
+  moveItemToSection: (itemId: string, sectionId: string | null) => Promise<void>;
+  updateWorkspaceViewMode: (workspaceId: string, viewMode: 'normal' | 'compact') => Promise<void>;
+  addBulkItems: (paramsList: CreateItemParams[]) => Promise<Item[]>;
+  bulkMoveItems: (itemIds: string[], targetSectionId: string | null, targetWorkspaceId?: string | null) => Promise<void>;
+  bulkArchiveItems: (itemIds: string[]) => Promise<void>;
+  bulkDeleteItems: (itemIds: string[]) => Promise<void>;
+
   // Workspaces
   createWorkspace: (name: string, color?: string, description?: string) => Promise<Workspace>;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<void>;
@@ -87,13 +102,19 @@ interface SideleafContextType extends ApplicationCommands {
     items: Item[],
     workspaces: Workspace[],
     mode: 'merge' | 'replace' | 'new_workspace',
-    newWorkspaceName?: string
+    newWorkspaceName?: string,
+    sections?: Section[],
+    settings?: UserSettings,
+    activity?: ActivityLog[]
   ) => Promise<void>;
   importWorkpadData: (
     items: Item[],
     workspaces: Workspace[],
     mode: 'merge' | 'replace' | 'new_workspace',
-    newWorkspaceName?: string
+    newWorkspaceName?: string,
+    sections?: Section[],
+    settings?: UserSettings,
+    activity?: ActivityLog[]
   ) => Promise<void>;
   resetAllData: () => Promise<void>;
 
@@ -124,12 +145,15 @@ const defaultSettings: ExtendedUserSettings = {
   hasInitialized: false,
 };
 
-const SideleafContext = createContext<SideleafContextType | null>(null);
+export const SideleafContext = createContext<SideleafContextType | null>(null);
 
 export function SideleafProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
   const [settings, setSettings] = useState<ExtendedUserSettings>(defaultSettings);
+  const currentLocale: Locale = settings.locale || detectSystemLocale();
+  const t: TranslationSchema = useMemo(() => getTranslation(currentLocale), [currentLocale]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [activeView, setActiveView] = useState<ActiveView>({ type: 'today' });
   const [isLoading, setIsLoading] = useState(true);
@@ -229,9 +253,10 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     async function loadData() {
       try {
-        const [loadedItems, loadedWorkspaces, loadedSettings, loadedActivity] = await Promise.all([
+        const [loadedItems, loadedWorkspaces, loadedSections, loadedSettings, loadedActivity] = await Promise.all([
           db.getAllItems(),
           db.getAllWorkspaces(),
+          db.getAllSections(),
           db.getSettings() as Promise<ExtendedUserSettings | null>,
           db.getRecentActivity(100),
         ]);
@@ -252,12 +277,15 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
           document.documentElement.lang = currentSettings.locale;
         }
 
+        setSections(loadedSections);
+
         // Only seed realistic starter data on very first run (no fake tutorial/marketing cards!)
         if (!currentSettings.hasInitialized && loadedItems.length === 0) {
           const starterItems: Item[] = [
             {
               id: generateId('item'),
               workspaceId: null,
+              sectionId: null,
               type: 'text',
               content: 'Review project notes',
               status: 'active',
@@ -323,7 +351,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         itemId: newItem.id,
         itemTextPreview: newItem.content.slice(0, 40),
         action: 'capture',
-        details: `Captured ${newItem.type} item`,
+        details: t.recent.actionCapture,
         timestamp: Date.now(),
       };
       setActivity((prev) => [act, ...prev.slice(0, 99)]);
@@ -331,7 +359,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
 
       return newItem;
     },
-    [currentWorkspaceId, touchSession]
+    [currentWorkspaceId, touchSession, t]
   );
 
   const createItem = addItem;
@@ -339,22 +367,19 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
   // Update Item (Uses functional update to prevent stale closure clobbering)
   const updateItem = useCallback(
     async (id: string, updates: Partial<Item>) => {
-      let itemToPersist: Item | null = null;
+      let itemToSave: Item | null = null;
       setItems((prev) =>
         prev.map((it) => {
           if (it.id !== id) return it;
-          const merged = { ...it, ...updates, updatedAt: Date.now() };
-          itemToPersist = merged;
-          return merged;
+          itemToSave = { ...it, ...updates, updatedAt: Date.now() };
+          return itemToSave;
         })
       );
-
-      if (itemToPersist) {
-        await db.saveItem(itemToPersist);
-        touchSession((itemToPersist as Item).workspaceId);
+      if (itemToSave) {
+        await db.saveItem(itemToSave);
       }
     },
-    [touchSession]
+    []
   );
 
   // Toggle checklist (Uses functional update)
@@ -382,14 +407,14 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
           itemId: target.id,
           itemTextPreview: target.content.slice(0, 40),
           action: 'toggle_task',
-          details: newCheckedState ? 'Marked task completed' : 'Marked task incomplete',
+          details: newCheckedState ? t.recent.actionCompleted : t.recent.actionIncomplete,
           timestamp: Date.now(),
         };
         setActivity((prev) => [act, ...prev.slice(0, 99)]);
         db.logActivity(act).catch(() => {});
       }
     },
-    [touchSession]
+    [touchSession, t]
   );
 
   // Convert Item Type (General)
@@ -419,26 +444,27 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         touchSession((convertedItem as Item).workspaceId);
 
         const actionType: ActivityAction = targetType === 'checklist' ? 'convert_task' : 'edit';
+        const targetTypeName = t.types[targetType as keyof typeof t.types] || targetType;
         const act: ActivityLog = {
           id: generateId('act'),
           itemId: id,
           itemTextPreview: (convertedItem as Item).content.slice(0, 40),
           action: actionType,
-          details: `Converted item to ${targetType}`,
+          details: targetType === 'checklist' ? t.recent.actionConvertTask : `${t.common.edit}: ${targetTypeName}`,
           timestamp: Date.now(),
         };
         setActivity((prev) => [act, ...prev.slice(0, 99)]);
         db.logActivity(act).catch(() => {});
 
-        triggerToast(targetType === 'checklist' ? 'Converted to task' : `Converted to ${targetType}`, {
-          description: `Undo conversion to ${targetType}`,
+        triggerToast(targetType === 'checklist' ? t.toast.convertedToTask : t.toast.convertedToType(targetTypeName), {
+          description: t.toast.undoConversion(targetTypeName),
           revert: async () => {
             await updateItem(id, { type: previousType, checked: previousChecked });
           },
         });
       }
     },
-    [triggerToast, updateItem, touchSession]
+    [triggerToast, updateItem, touchSession, t]
   );
 
   // Convert to task command (Spec Section 80-81, 12)
@@ -469,18 +495,18 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         touchSession(targetWorkspaceId);
 
         const destName = targetWorkspaceId
-          ? workspaces.find((w) => w.id === targetWorkspaceId)?.name || 'Workspace'
-          : 'Scratch';
+          ? workspaces.find((w) => w.id === targetWorkspaceId)?.name || t.workspace.newWorkspace
+          : t.item.scratchOption;
 
-        triggerToast(`Moved to ${destName}`, {
-          description: 'Undo move',
+        triggerToast(t.toast.movedToWorkspace(destName), {
+          description: t.toast.undoMove,
           revert: async () => {
             await updateItem(id, { workspaceId: prevWorkspaceId });
           },
         });
       }
     },
-    [workspaces, triggerToast, updateItem, touchSession]
+    [workspaces, triggerToast, updateItem, touchSession, t]
   );
 
   // Archive Item
@@ -507,15 +533,15 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         await db.saveItem(archivedItem);
         touchSession((archivedItem as Item).workspaceId);
 
-        triggerToast('Item archived', {
-          description: 'Undo archive',
+        triggerToast(t.toast.itemArchived, {
+          description: t.toast.undoArchive,
           revert: async () => {
             await updateItem(id, { status: prevStatus as any, archivedAt: undefined });
           },
         });
       }
     },
-    [triggerToast, updateItem, touchSession]
+    [triggerToast, updateItem, touchSession, t]
   );
 
   // Restore Item
@@ -546,8 +572,8 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       if (restoredItem) {
         await db.saveItem(restoredItem);
         touchSession((restoredItem as Item).workspaceId);
-        triggerToast('Item restored to active surface', {
-          description: 'Undo restore',
+        triggerToast(t.toast.itemRestored, {
+          description: t.toast.undoRestore,
           revert: async () => {
             await updateItem(id, {
               status: prevStatus as any,
@@ -558,7 +584,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [triggerToast, updateItem, touchSession]
+    [triggerToast, updateItem, touchSession, t]
   );
 
   // Soft Delete Item (Move to Trash, Spec Section 53, 54)
@@ -585,15 +611,15 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         await db.saveItem(deletedItem);
         touchSession((deletedItem as Item).workspaceId);
 
-        triggerToast('Item moved to trash', {
-          description: 'Undo delete',
+        triggerToast(t.toast.itemMovedToTrash, {
+          description: t.toast.undoDelete,
           revert: async () => {
             await updateItem(id, { status: prevStatus as any, deletedAt: undefined });
           },
         });
       }
     },
-    [triggerToast, updateItem, touchSession]
+    [triggerToast, updateItem, touchSession, t]
   );
 
   // deleteItem alias for softDeleteItem (Spec Section 80-81)
@@ -604,9 +630,9 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       setItems((prev) => prev.filter((it) => it.id !== id));
       await db.deleteItem(id);
-      triggerToast('Item permanently deleted');
+      triggerToast(t.toast.itemPermanentlyDeleted);
     },
-    [triggerToast]
+    [triggerToast, t]
   );
 
   // Permanently Delete Items (Bulk)
@@ -616,9 +642,376 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       const idSet = new Set(ids);
       setItems((prev) => prev.filter((it) => !idSet.has(it.id)));
       await db.deleteItems(ids);
-      triggerToast(`${ids.length} items permanently deleted`);
+      triggerToast(t.toast.itemsPermanentlyDeleted(ids.length));
     },
-    [triggerToast]
+    [triggerToast, t]
+  );
+
+  // Section Operations
+  const createSection = useCallback(
+    async (workspaceId: string, name: string): Promise<Section> => {
+      const trimmed = name.trim();
+      const now = Date.now();
+      let createdSection: Section | null = null;
+
+      setSections((prev) => {
+        const wsSections = prev.filter((s) => s.workspaceId === workspaceId);
+        const maxOrder = wsSections.length > 0 ? Math.max(...wsSections.map((s) => s.order)) : -1;
+        const newSec: Section = {
+          id: generateId('sec'),
+          workspaceId,
+          name: trimmed || 'Untitled Section',
+          order: maxOrder + 1,
+          collapsed: false,
+          createdAt: now,
+          updatedAt: now,
+        };
+        createdSection = newSec;
+        return [...prev, newSec];
+      });
+
+      if (createdSection) {
+        const secRef = createdSection as Section;
+        await db.saveSection(secRef);
+
+        triggerToast(t.toast.sectionCreated(secRef.name), {
+          description: t.toast.undoCreateSection,
+          revert: async () => {
+            setSections((prev) => prev.filter((s) => s.id !== secRef.id));
+            await db.deleteSection(secRef.id);
+          },
+        });
+
+        return secRef;
+      }
+
+      throw new Error('Failed to create section');
+    },
+    [triggerToast, t]
+  );
+
+  const updateSection = useCallback(
+    async (id: string, updates: Partial<Section>) => {
+      let secToSave: Section | null = null;
+      setSections((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          secToSave = { ...s, ...updates, updatedAt: Date.now() };
+          return secToSave;
+        })
+      );
+      if (secToSave) {
+        await db.saveSection(secToSave);
+      }
+    },
+    []
+  );
+
+  const toggleSectionCollapse = useCallback(
+    async (id: string) => {
+      let secToSave: Section | null = null;
+      setSections((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          secToSave = { ...s, collapsed: !s.collapsed, updatedAt: Date.now() };
+          return secToSave;
+        })
+      );
+      if (secToSave) {
+        await db.saveSection(secToSave);
+      }
+    },
+    []
+  );
+
+  const deleteSection = useCallback(
+    async (id: string) => {
+      let secToDelete: Section | undefined;
+      setSections((prev) => {
+        secToDelete = prev.find((s) => s.id === id);
+        return prev.filter((s) => s.id !== id);
+      });
+      if (!secToDelete) return;
+
+      await db.deleteSection(id);
+
+      const affectedItemIds: string[] = [];
+      const updatedItemsToSave: Item[] = [];
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.sectionId === id) {
+            affectedItemIds.push(it.id);
+            const updated = { ...it, sectionId: null, updatedAt: Date.now() };
+            updatedItemsToSave.push(updated);
+            return updated;
+          }
+          return it;
+        })
+      );
+
+      if (updatedItemsToSave.length > 0) {
+        await db.saveItems(updatedItemsToSave);
+      }
+
+      const deletedSec = secToDelete as Section;
+      triggerToast(t.toast.sectionDeleted(deletedSec.name), {
+        description: t.toast.undoDeleteSection,
+        revert: async () => {
+          setSections((prev) => [...prev, deletedSec]);
+          await db.saveSection(deletedSec);
+
+          if (affectedItemIds.length > 0) {
+            const restoredItems: Item[] = [];
+            setItems((prev) =>
+              prev.map((it) => {
+                if (affectedItemIds.includes(it.id)) {
+                  const restored = { ...it, sectionId: id, updatedAt: Date.now() };
+                  restoredItems.push(restored);
+                  return restored;
+                }
+                return it;
+              })
+            );
+            if (restoredItems.length > 0) {
+              await db.saveItems(restoredItems);
+            }
+          }
+        },
+      });
+    },
+    [triggerToast, t]
+  );
+
+  const reorderSections = useCallback(
+    async (workspaceId: string, sectionIds: string[]) => {
+      const idOrderMap = new Map(sectionIds.map((id, index) => [id, index]));
+      let updatedList: Section[] = [];
+      setSections((prev) => {
+        updatedList = prev.map((s) => {
+          if (s.workspaceId === workspaceId && idOrderMap.has(s.id)) {
+            return { ...s, order: idOrderMap.get(s.id)!, updatedAt: Date.now() };
+          }
+          return s;
+        });
+        return updatedList;
+      });
+
+      const toSave = updatedList.filter((s) => s.workspaceId === workspaceId && idOrderMap.has(s.id));
+      if (toSave.length > 0) {
+        await db.saveSections(toSave);
+      }
+    },
+    []
+  );
+
+  const moveItemToSection = useCallback(
+    async (itemId: string, sectionId: string | null) => {
+      let prevSectionId: string | null = null;
+      let targetItem: Item | null = null;
+
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          prevSectionId = it.sectionId ?? null;
+          targetItem = { ...it, sectionId, updatedAt: Date.now() };
+          return targetItem;
+        })
+      );
+
+      if (targetItem) {
+        await db.saveItem(targetItem);
+        touchSession((targetItem as Item).workspaceId);
+
+        const secName = sectionId ? sections.find((s) => s.id === sectionId)?.name || t.section.section : t.section.unsectioned;
+        triggerToast(t.toast.movedToSection(secName), {
+          description: t.toast.undoMoveToSection,
+          revert: async () => {
+            await updateItem(itemId, { sectionId: prevSectionId });
+          },
+        });
+      }
+    },
+    [sections, touchSession, triggerToast, updateItem, t]
+  );
+
+  // Bulk Operations
+  const addBulkItems = useCallback(
+    async (paramsList: CreateItemParams[]): Promise<Item[]> => {
+      if (paramsList.length === 0) return [];
+      const now = Date.now();
+      const count = paramsList.length;
+      const newItems = paramsList.map((p, idx) =>
+        createItemRecord(p, currentWorkspaceId, now + (count - idx))
+      );
+
+      setItems((prev) => [...newItems, ...prev]);
+      await db.saveItems(newItems);
+
+      const firstWsId = newItems[0]?.workspaceId;
+      touchSession(firstWsId);
+
+      triggerToast(t.toast.itemsAdded(count), {
+        description: t.toast.undoAddItems(count),
+        revert: async () => {
+          const ids = new Set(newItems.map((i) => i.id));
+          setItems((prev) => prev.filter((i) => !ids.has(i.id)));
+          await db.deleteItems(newItems.map((i) => i.id));
+        },
+      });
+
+      return newItems;
+    },
+    [currentWorkspaceId, touchSession, triggerToast, t]
+  );
+
+  const bulkMoveItems = useCallback(
+    async (itemIds: string[], targetSectionId: string | null, targetWorkspaceId?: string | null) => {
+      if (itemIds.length === 0) return;
+      const idSet = new Set(itemIds);
+      const previousMap = new Map<string, { sectionId: string | null; workspaceId: string | null }>();
+
+      const updatedItems: Item[] = [];
+      setItems((prev) =>
+        prev.map((it) => {
+          if (!idSet.has(it.id)) return it;
+          previousMap.set(it.id, { sectionId: it.sectionId ?? null, workspaceId: it.workspaceId });
+          const updated: Item = {
+            ...it,
+            sectionId: targetSectionId,
+            workspaceId: targetWorkspaceId !== undefined ? targetWorkspaceId : it.workspaceId,
+            updatedAt: Date.now(),
+          };
+          updatedItems.push(updated);
+          return updated;
+        })
+      );
+
+      await db.saveItems(updatedItems);
+      const targetName = targetSectionId
+        ? sections.find((s) => s.id === targetSectionId)?.name || t.section.section
+        : t.section.unsectioned;
+
+      triggerToast(t.toast.itemsBulkMoved(itemIds.length, targetName), {
+        description: t.toast.undoMove,
+        revert: async () => {
+          const restored: Item[] = [];
+          setItems((prev) =>
+            prev.map((it) => {
+              const prevData = previousMap.get(it.id);
+              if (!prevData) return it;
+              const rest: Item = {
+                ...it,
+                sectionId: prevData.sectionId,
+                workspaceId: prevData.workspaceId,
+                updatedAt: Date.now(),
+              };
+              restored.push(rest);
+              return rest;
+            })
+          );
+          await db.saveItems(restored);
+        },
+      });
+    },
+    [sections, triggerToast, t]
+  );
+
+  const bulkArchiveItems = useCallback(
+    async (itemIds: string[]) => {
+      if (itemIds.length === 0) return;
+      const idSet = new Set(itemIds);
+      const prevStatusMap = new Map<string, { status: string; archivedAt?: number }>();
+      const now = Date.now();
+      const updatedItems: Item[] = [];
+
+      setItems((prev) =>
+        prev.map((it) => {
+          if (!idSet.has(it.id)) return it;
+          prevStatusMap.set(it.id, { status: it.status, archivedAt: it.archivedAt });
+          const updated: Item = {
+            ...it,
+            status: 'archived',
+            archivedAt: now,
+            updatedAt: now,
+          };
+          updatedItems.push(updated);
+          return updated;
+        })
+      );
+
+      await db.saveItems(updatedItems);
+      triggerToast(t.toast.itemsBulkArchived(itemIds.length), {
+        description: t.toast.undoArchive,
+        revert: async () => {
+          const restored: Item[] = [];
+          setItems((prev) =>
+            prev.map((it) => {
+              const prevData = prevStatusMap.get(it.id);
+              if (!prevData) return it;
+              const rest: Item = {
+                ...it,
+                status: prevData.status as any,
+                archivedAt: prevData.archivedAt,
+                updatedAt: Date.now(),
+              };
+              restored.push(rest);
+              return rest;
+            })
+          );
+          await db.saveItems(restored);
+        },
+      });
+    },
+    [triggerToast, t]
+  );
+
+  const bulkDeleteItems = useCallback(
+    async (itemIds: string[]) => {
+      if (itemIds.length === 0) return;
+      const idSet = new Set(itemIds);
+      const prevStatusMap = new Map<string, { status: string; deletedAt?: number }>();
+      const now = Date.now();
+      const updatedItems: Item[] = [];
+
+      setItems((prev) =>
+        prev.map((it) => {
+          if (!idSet.has(it.id)) return it;
+          prevStatusMap.set(it.id, { status: it.status, deletedAt: it.deletedAt });
+          const updated: Item = {
+            ...it,
+            status: 'deleted',
+            deletedAt: now,
+            updatedAt: now,
+          };
+          updatedItems.push(updated);
+          return updated;
+        })
+      );
+
+      await db.saveItems(updatedItems);
+      triggerToast(t.toast.itemsBulkDeleted(itemIds.length), {
+        description: t.toast.undoDelete,
+        revert: async () => {
+          const restored: Item[] = [];
+          setItems((prev) =>
+            prev.map((it) => {
+              const prevData = prevStatusMap.get(it.id);
+              if (!prevData) return it;
+              const rest: Item = {
+                ...it,
+                status: prevData.status as any,
+                deletedAt: prevData.deletedAt,
+                updatedAt: Date.now(),
+              };
+              restored.push(rest);
+              return rest;
+            })
+          );
+          await db.saveItems(restored);
+        },
+      });
+    },
+    [triggerToast, t]
   );
 
   // Workspaces
@@ -635,10 +1028,10 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
 
       setWorkspaces((prev) => [...prev, newWs]);
       await db.saveWorkspace(newWs);
-      triggerToast(`Created workspace "${newWs.name}"`);
+      triggerToast(t.toast.workspaceCreated(newWs.name));
       return newWs;
     },
-    [triggerToast]
+    [triggerToast, t]
   );
 
   const updateWorkspace = useCallback(async (id: string, updates: Partial<Workspace>) => {
@@ -656,6 +1049,13 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const updateWorkspaceViewMode = useCallback(
+    async (workspaceId: string, viewMode: 'normal' | 'compact') => {
+      await updateWorkspace(workspaceId, { viewMode });
+    },
+    [updateWorkspace]
+  );
+
   const deleteWorkspace = useCallback(
     async (id: string) => {
       const wsToDelete = workspaces.find((w) => w.id === id);
@@ -663,12 +1063,19 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
 
       // Keep items by moving them safely to scratch (Spec Section 27 - never lose data)
       setItems((prev) =>
-        prev.map((it) => (it.workspaceId === id ? { ...it, workspaceId: null, updatedAt: Date.now() } : it))
+        prev.map((it) => (it.workspaceId === id ? { ...it, workspaceId: null, sectionId: null, updatedAt: Date.now() } : it))
       );
       const itemsToUpdate = items
         .filter((i) => i.workspaceId === id)
-        .map((i) => ({ ...i, workspaceId: null, updatedAt: Date.now() }));
+        .map((i) => ({ ...i, workspaceId: null, sectionId: null, updatedAt: Date.now() }));
       await db.saveItems(itemsToUpdate);
+
+      // Remove sections of this workspace
+      const wsSections = sections.filter((s) => s.workspaceId === id);
+      setSections((prev) => prev.filter((s) => s.workspaceId !== id));
+      if (wsSections.length > 0) {
+        await db.deleteSections(wsSections.map((s) => s.id));
+      }
 
       setWorkspaces((prev) => prev.filter((w) => w.id !== id));
       await db.deleteWorkspace(id);
@@ -681,9 +1088,9 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         setActiveView({ type: 'today' });
       }
 
-      triggerToast(`Workspace "${wsToDelete.name}" deleted. Notes preserved in Scratch.`);
+      triggerToast(t.toast.workspaceDeleted(wsToDelete.name));
     },
-    [workspaces, items, activeView, currentWorkspaceId, setCurrentWorkspace, triggerToast]
+    [workspaces, items, sections, activeView, currentWorkspaceId, setCurrentWorkspace, triggerToast, t]
   );
 
   // Update Settings
@@ -708,7 +1115,10 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       importedItems: Item[],
       importedWorkspaces: Workspace[],
       mode: 'merge' | 'replace' | 'new_workspace',
-      newWorkspaceName?: string
+      newWorkspaceName?: string,
+      importedSections?: Section[],
+      importedSettings?: UserSettings,
+      importedActivity?: ActivityLog[]
     ) => {
       // Validate all workspace references so orphaned items safely fall back to Scratch
       const validWsIds = new Set(
@@ -717,17 +1127,37 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
           : [...workspaces.map((w) => w.id), ...importedWorkspaces.map((w) => w.id)]
       );
 
-      const sanitizedItems = importedItems.map((item) => ({
-        ...item,
-        workspaceId: item.workspaceId && validWsIds.has(item.workspaceId) ? item.workspaceId : null,
-      }));
+      const rawSections = importedSections || [];
 
       if (mode === 'replace') {
-        // Atomic save new data first before setting state
+        const sanitizedItems = importedItems.map((item) => ({
+          ...item,
+          workspaceId: item.workspaceId && validWsIds.has(item.workspaceId) ? item.workspaceId : null,
+          sectionId: item.sectionId || null,
+        }));
+
+        await db.clearContentData();
         await db.saveWorkspaces(importedWorkspaces);
+        await db.saveSections(rawSections);
         await db.saveItems(sanitizedItems);
         setWorkspaces(importedWorkspaces);
+        setSections(rawSections);
         setItems(sanitizedItems);
+
+        // Replace semantics for settings: restore if present, preserve current if absent (legacy)
+        if (importedSettings) {
+          await db.saveSettings(importedSettings);
+          setSettings(importedSettings);
+          if (importedSettings.locale && typeof document !== 'undefined') {
+            document.documentElement.lang = importedSettings.locale;
+          }
+        }
+
+        // Replace semantics for activity: restore if present, preserve current if absent (legacy)
+        if (importedActivity) {
+          await db.restoreActivity(importedActivity);
+          setActivity(importedActivity);
+        }
       } else if (mode === 'new_workspace') {
         const ws: Workspace = {
           id: generateId('ws'),
@@ -736,27 +1166,35 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
-        const adjustedItems = sanitizedItems.map((it) => ({
+
+        // Remap sections for this new workspace
+        const sectionIdMap = new Map<string, string>();
+        const newSections: Section[] = rawSections.map((s) => {
+          const newSecId = generateId('sec');
+          sectionIdMap.set(s.id, newSecId);
+          return {
+            ...s,
+            id: newSecId,
+            workspaceId: ws.id,
+          };
+        });
+
+        const adjustedItems = importedItems.map((it) => ({
           ...it,
           id: generateId('item'),
           workspaceId: ws.id,
+          sectionId: it.sectionId ? (sectionIdMap.get(it.sectionId) || null) : null,
         }));
+
         await db.saveWorkspace(ws);
+        await db.saveSections(newSections);
         await db.saveItems(adjustedItems);
         setWorkspaces((prev) => [...prev, ws]);
+        setSections((prev) => [...newSections, ...prev]);
         setItems((prev) => [...adjustedItems, ...prev]);
         setActiveView({ type: 'workspace', workspaceId: ws.id });
       } else {
         // Merge mode: keep newer record if IDs conflict
-        const existingItemMap = new Map(items.map((i) => [i.id, i]));
-        for (const it of sanitizedItems) {
-          const existing = existingItemMap.get(it.id);
-          if (!existing || it.updatedAt > existing.updatedAt) {
-            existingItemMap.set(it.id, it);
-          }
-        }
-        const mergedItems = Array.from(existingItemMap.values());
-
         const existingWsMap = new Map(workspaces.map((w) => [w.id, w]));
         for (const w of importedWorkspaces) {
           const existing = existingWsMap.get(w.id);
@@ -766,15 +1204,42 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         }
         const mergedWorkspaces = Array.from(existingWsMap.values());
 
+        const existingSecMap = new Map(sections.map((s) => [s.id, s]));
+        for (const s of rawSections) {
+          const existing = existingSecMap.get(s.id);
+          if (!existing || s.updatedAt > existing.updatedAt) {
+            existingSecMap.set(s.id, s);
+          }
+        }
+        const mergedSections = Array.from(existingSecMap.values());
+        const validSectionIds = new Set(mergedSections.map((s) => s.id));
+
+        const sanitizedItems = importedItems.map((item) => ({
+          ...item,
+          workspaceId: item.workspaceId && validWsIds.has(item.workspaceId) ? item.workspaceId : null,
+          sectionId: item.sectionId && validSectionIds.has(item.sectionId) ? item.sectionId : null,
+        }));
+
+        const existingItemMap = new Map(items.map((i) => [i.id, i]));
+        for (const it of sanitizedItems) {
+          const existing = existingItemMap.get(it.id);
+          if (!existing || it.updatedAt > existing.updatedAt) {
+            existingItemMap.set(it.id, it);
+          }
+        }
+        const mergedItems = Array.from(existingItemMap.values());
+
         await db.saveWorkspaces(mergedWorkspaces);
+        await db.saveSections(mergedSections);
         await db.saveItems(mergedItems);
         setWorkspaces(mergedWorkspaces);
+        setSections(mergedSections);
         setItems(mergedItems);
       }
 
-      triggerToast(`Imported ${importedItems.length} items successfully`);
+      triggerToast(t.toast.itemsImported(importedItems.length));
     },
-    [items, workspaces, triggerToast]
+    [items, workspaces, sections, triggerToast, t]
   );
 
   // Reset All (Sets hasInitialized to true so starter notes never re-seed!)
@@ -784,17 +1249,15 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     await db.saveSettings(cleanSettings);
     setItems([]);
     setWorkspaces([]);
+    setSections([]);
     setActivity([]);
     setCurrentSession(null);
     setCurrentWorkspaceId(null);
     undoStackRef.current = [];
     setSettings(cleanSettings);
     setActiveView({ type: 'today' });
-    triggerToast('All data cleared. Empty workspace ready.');
-  }, [settings, triggerToast]);
-
-  const currentLocale: Locale = settings.locale || detectSystemLocale();
-  const t: TranslationSchema = useMemo(() => getTranslation(currentLocale), [currentLocale]);
+    triggerToast(t.toast.allDataCleared);
+  }, [settings, triggerToast, t]);
 
   const setLocale = useCallback(
     async (newLocale: Locale) => {
@@ -807,6 +1270,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     () => ({
       items,
       workspaces,
+      sections,
       settings,
       activity,
       activeView,
@@ -842,6 +1306,17 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       softDeleteItem,
       permanentlyDeleteItem,
       permanentlyDeleteItems,
+      createSection,
+      updateSection,
+      toggleSectionCollapse,
+      deleteSection,
+      reorderSections,
+      moveItemToSection,
+      updateWorkspaceViewMode,
+      addBulkItems,
+      bulkMoveItems,
+      bulkArchiveItems,
+      bulkDeleteItems,
       createWorkspace,
       updateWorkspace,
       deleteWorkspace,
@@ -860,6 +1335,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     [
       items,
       workspaces,
+      sections,
       settings,
       activity,
       activeView,
@@ -888,6 +1364,17 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       softDeleteItem,
       permanentlyDeleteItems,
       permanentlyDeleteItem,
+      createSection,
+      updateSection,
+      toggleSectionCollapse,
+      deleteSection,
+      reorderSections,
+      moveItemToSection,
+      updateWorkspaceViewMode,
+      addBulkItems,
+      bulkMoveItems,
+      bulkArchiveItems,
+      bulkDeleteItems,
       createWorkspace,
       updateWorkspace,
       deleteWorkspace,

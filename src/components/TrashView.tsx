@@ -69,9 +69,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
                 {t.trash.emptyConfirmPrompt}
               </div>
               <div className="text-neutral-600 dark:text-neutral-400 mt-0.5">
-                {locale === 'tr'
-                  ? 'Bu işlem geri alınamaz. Silinen tüm notlar kalıcı olarak temizlenecektir.'
-                  : 'This action is irreversible. All deleted notes will be permanently erased.'}
+                {t.trash.emptyWarning}
               </div>
               <div className="flex items-center gap-2 mt-3">
                 <button
@@ -117,16 +115,14 @@ export const TrashView: React.FC<TrashViewProps> = ({
                   </p>
                   <div className="mt-1 text-neutral-400 flex items-center gap-2 text-[11px]">
                     <span>
-                      {locale === 'tr'
-                        ? `Silinme: ${formatTimeAgo(item.deletedAt || item.updatedAt, locale)}`
-                        : `Deleted ${formatTimeAgo(item.deletedAt || item.updatedAt, locale)}`}
+                      {t.trash.deletedTimeAgo(formatTimeAgo(item.deletedAt || item.updatedAt, locale))}
                     </span>
                     {originWs && (
                       <span>
-                        {locale === 'tr' ? `· ${originWs.name} alanından` : `· from ${originWs.name}`}
+                        · {t.workspace.fromWorkspace(originWs.name)}
                       </span>
                     )}
-                    <span>· {item.type}</span>
+                    <span>· {t.types[item.type as keyof typeof t.types] || item.type}</span>
                   </div>
                 </div>
 

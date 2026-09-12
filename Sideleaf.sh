@@ -21,22 +21,17 @@ fi
 
 # If Node.js is installed, use the cross-platform launcher
 if command -v node > /dev/null 2>&1 && [ -f "$SCRIPT_DIR/scripts/launcher.mjs" ]; then
-  exec node "$SCRIPT_DIR/scripts/launcher.mjs"
+  exec node "$SCRIPT_DIR/scripts/launcher.mjs" "$@"
 fi
 
 # If Python 3 is installed, use Python's built-in HTTP server with loopback binding and SPA fallback
 if command -v python3 > /dev/null 2>&1; then
-  python3 - <<'EOF' "$DIST_DIR"
+  python3 - <<'EOF' "$DIST_DIR" "$@"
 import sys, os, socket, socketserver, http.server, urllib.parse, subprocess
 
 dist_dir = os.path.abspath(sys.argv[1])
 index_file = os.path.join(dist_dir, "index.html")
-
-# Find a free port on 127.0.0.1
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind(('127.0.0.1', 0))
-port = sock.getsockname()[1]
-sock.close()
+port = 47321
 
 class SPAServer(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -66,6 +61,12 @@ class SPAServer(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Sideleaf-Server', '1')
+        req_path = urllib.parse.unquote(self.path.split('?')[0].split('#')[0]).lower()
+        if req_path.endswith('.html') or req_path.endswith('sw.js') or req_path.endswith('build-info.json') or req_path == '/':
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        else:
+            self.send_header('Cache-Control', 'public, max-age=31536000, immutable')
         super().end_headers()
 
     def log_message(self, format, *args):
@@ -73,21 +74,30 @@ class SPAServer(http.server.SimpleHTTPRequestHandler):
         pass
 
 url = f"http://127.0.0.1:{port}/"
+
+socketserver.TCPServer.allow_reuse_address = True
+try:
+    httpd = socketserver.TCPServer(('127.0.0.1', port), SPAServer)
+except OSError:
+    print(f"\n  Port {port} is already in use.")
+    print(f"  Sideleaf requires fixed loopback port {port} to maintain deterministic origin.")
+    print("  Please stop any running instance or conflicting process before restarting.\n")
+    sys.exit(1)
+
 print(f"Sideleaf is running locally at {url}")
 print("Press Ctrl+C to close this window when done.")
 
-# Launch browser
-if sys.platform == 'darwin':
-    subprocess.Popen(['open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-else:
-    subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+no_browser = "--no-browser" in sys.argv or "-NoBrowser" in sys.argv
+if not no_browser:
+    if sys.platform == 'darwin':
+        subprocess.Popen(['open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-socketserver.TCPServer.allow_reuse_address = True
-with socketserver.TCPServer(('127.0.0.1', port), SPAServer) as httpd:
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
+try:
+    httpd.serve_forever()
+except KeyboardInterrupt:
+    pass
 EOF
   exit 0
 fi

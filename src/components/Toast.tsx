@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Undo2, X } from 'lucide-react';
+import { useSideleaf } from '../hooks/useSideleaf';
 
 interface ToastProps {
   message: string;
@@ -16,6 +17,8 @@ export const Toast: React.FC<ToastProps> = ({
   onDismiss,
   durationMs = 5000,
 }) => {
+  const { t } = useSideleaf();
+
   useEffect(() => {
     const timer = setTimeout(() => {
       onDismiss();
@@ -37,13 +40,13 @@ export const Toast: React.FC<ToastProps> = ({
           className="ml-1 inline-flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400 hover:underline focus-ring rounded"
         >
           <Undo2 className="w-3.5 h-3.5" />
-          Undo
+          {t.toast.undo}
         </button>
       )}
 
       <button
         onClick={onDismiss}
-        aria-label="Dismiss notification"
+        aria-label={t.toast.dismiss}
         className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded focus-ring"
       >
         <X className="w-3.5 h-3.5" />

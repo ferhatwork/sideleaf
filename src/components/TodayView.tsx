@@ -1,8 +1,12 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput, QuickInputHandle } from './QuickInput';
 import { formatTimeAgo, formatLocalizedDate } from '../utils/format';
+import { extractRawUrls } from '../utils/linkParser';
+import { toggleGroupSelectionState, reconcileSelectionState } from '../utils/domain';
+import { BulkActionBar } from './BulkActionBar';
+import { GroupSelectButton } from './GroupSelectButton';
 import { useSideleaf } from '../hooks/useSideleaf';
 
 interface TodayViewProps {
@@ -32,7 +36,15 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onDelete,
   onNavigateToWorkspace,
 }) => {
-  const { t, locale, currentWorkspaceId } = useSideleaf();
+  const {
+    t,
+    locale,
+    currentWorkspaceId,
+    bulkMoveItems,
+    bulkArchiveItems,
+    bulkDeleteItems,
+    triggerToast,
+  } = useSideleaf();
   const quickInputRef = useRef<QuickInputHandle>(null);
   const startOfToday = new Date().setHours(0, 0, 0, 0);
 
@@ -78,38 +90,116 @@ export const TodayView: React.FC<TodayViewProps> = ({
       .slice(0, 3);
   }, [workspaces, activeItems]);
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const streamItemIds = useMemo(
+    () => streamItems.map((i) => i.id),
+    [streamItems]
+  );
+
+  // Reconcile selection if stream items change
+  useEffect(() => {
+    setSelectedIds((prev) => reconcileSelectionState(prev, streamItemIds));
+  }, [streamItemIds]);
+
+  const handleToggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleGroup = (ids: string[]) => {
+    setSelectedIds((prev) => toggleGroupSelectionState(prev, ids));
+  };
+
+  const selectedItems = useMemo(
+    () => streamItems.filter((it) => selectedIds.has(it.id)),
+    [streamItems, selectedIds]
+  );
+
+  const handleBulkCopyLinks = async () => {
+    const rawUrls = extractRawUrls(selectedItems);
+    if (!rawUrls) {
+      triggerToast(t.bulk.noLinksSelected);
+      return;
+    }
+    await navigator.clipboard.writeText(rawUrls);
+    const count = rawUrls.split('\n').filter(Boolean).length;
+    triggerToast(`${count} ${t.bulk.copyLinksSuccess}`);
+  };
+
+  const handleBulkMoveToWorkspace = async (targetWorkspaceId: string | null) => {
+    const ids = Array.from(selectedIds);
+    await bulkMoveItems(ids, null, targetWorkspaceId);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkArchive = async () => {
+    const ids = Array.from(selectedIds);
+    await bulkArchiveItems(ids);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    await bulkDeleteItems(ids);
+    setSelectedIds(new Set());
+  };
+
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6">
       {/* Page Title & Date Header */}
-      <div className="space-y-1 mb-5">
-        <h1 className="text-2xl font-serif font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-          {t.today.title}
-        </h1>
-        <p className="text-xs text-neutral-400 dark:text-neutral-500 font-mono">
-          {todayFormatted}
-        </p>
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-serif font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+            {t.today.title}
+          </h1>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 font-mono">
+            {todayFormatted}
+          </p>
 
-        {/* Working on context indicator on the main work surface (Section 20 & 28) */}
-        {currentWorkspace && (
-          <div className="pt-2 flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 text-xs">
-              <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: currentWorkspace.color || '#3b82f6' }}
-                aria-hidden="true"
-              />
-              <span className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                {t.common.workingOn}:
-              </span>
-              <button
-                type="button"
-                onClick={() => onNavigateToWorkspace(currentWorkspace.id)}
-                className="font-medium text-neutral-800 dark:text-neutral-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus-ring rounded"
-              >
-                {currentWorkspace.name}
-              </button>
+          {/* Working on context indicator on the main work surface (Section 20 & 28) */}
+          {currentWorkspace && (
+            <div className="pt-2 flex items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-neutral-100/80 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 text-xs">
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: currentWorkspace.color || '#3b82f6' }}
+                  aria-hidden="true"
+                />
+                <span className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
+                  {t.common.workingOn}:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onNavigateToWorkspace(currentWorkspace.id)}
+                  className="font-medium text-neutral-800 dark:text-neutral-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus-ring rounded"
+                >
+                  {currentWorkspace.name}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {streamItems.length > 0 && (
+          <GroupSelectButton
+            itemIds={streamItemIds}
+            selectedIds={selectedIds}
+            onToggle={handleToggleGroup}
+            selectAllLabel={t.bulk.selectAll}
+            clearSelectionLabel={t.bulk.clearSelection}
+            alwaysVisible={selectedIds.size > 0}
+            className="mt-1"
+          />
         )}
       </div>
 
@@ -157,6 +247,8 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 item={item}
                 workspaces={workspaces}
                 locale={locale}
+                isSelected={selectedIds.has(item.id)}
+                onToggleSelect={handleToggleSelect}
                 onUpdate={onUpdate}
                 onToggleCheck={onToggleCheck}
                 onConvertType={onConvertType}
@@ -203,6 +295,17 @@ export const TodayView: React.FC<TodayViewProps> = ({
           )}
         </>
       )}
+
+      {/* Floating Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        onCopyLinks={handleBulkCopyLinks}
+        onArchive={handleBulkArchive}
+        onDelete={handleBulkDelete}
+        onClearSelection={() => setSelectedIds(new Set())}
+        workspaces={workspaces}
+        onMoveToWorkspace={handleBulkMoveToWorkspace}
+      />
     </div>
   );
 };

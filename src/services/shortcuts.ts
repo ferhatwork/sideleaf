@@ -10,6 +10,7 @@ export interface ShortcutHandler {
 
 export function registerGlobalShortcuts(handlers: ShortcutHandler[]): () => void {
   const listener = (event: KeyboardEvent) => {
+    if (event.defaultPrevented) return;
     const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
     const hasCtrlOrCmd = isMac ? event.metaKey : event.ctrlKey;
     const target = event.target as HTMLElement | null;

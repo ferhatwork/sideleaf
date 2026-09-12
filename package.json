@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/generate-build-info.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "launch": "node scripts/launcher.mjs",

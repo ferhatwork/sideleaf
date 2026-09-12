@@ -22,7 +22,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onSelectItem,
   activeWorkspaceId = null,
 }) => {
-  const { t, locale } = useSideleaf();
+  const { t, locale, sections } = useSideleaf();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,11 +58,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
       query,
       items,
       workspaces,
+      sections,
       activeWorkspaceId,
       statusFilter: 'all',
       limit: 20,
     });
-  }, [query, items, workspaces, activeWorkspaceId]);
+  }, [query, items, workspaces, sections, activeWorkspaceId]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -111,7 +112,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
   const getWorkspaceName = (wsId: string | null) => {
     if (!wsId) return t.item.scratchOption;
-    return workspaces.find((w) => w.id === wsId)?.name || 'Workspace';
+    return workspaces.find((w) => w.id === wsId)?.name || t.workspace.workspaceName;
   };
 
   return (
@@ -208,6 +209,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                       <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500">
                         <span className="font-medium text-neutral-600 dark:text-neutral-400">
                           {getWorkspaceName(item.workspaceId)}
+                          {item.sectionId && (
+                            <span className="text-neutral-400 font-normal">
+                              {' › '}
+                              {sections.find((s) => s.id === item.sectionId)?.name}
+                            </span>
+                          )}
                         </span>
                         <span>·</span>
                         <span>{formatTimeAgo(item.updatedAt, locale)}</span>

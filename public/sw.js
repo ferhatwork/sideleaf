@@ -9,13 +9,15 @@ const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/build-info.json',
   '/icon.svg',
   '/icon-192.png',
   '/icon-512.png',
 ];
 
-// Pre-cache core app shell assets on install
+// Pre-cache core app shell assets on install and activate immediately
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
@@ -23,12 +25,14 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Clean up previous caches upon activation
+// Clean up previous Sideleaf caches upon activation (never touches unrelated caches or IndexedDB)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys
+          .filter((key) => key.startsWith('sideleaf-') && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
       );
     })
   );
@@ -51,6 +55,14 @@ self.addEventListener('fetch', (event) => {
   // 2. Strictly ignore external requests (only same-origin)
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Always fetch build-info and sw from network so versions and updates are immediately detected
+  if (url.pathname === '/build-info.json' || url.pathname === '/sw.js') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
     return;
   }
 

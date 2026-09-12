@@ -25,6 +25,19 @@ export interface CommonTranslations {
   workingOn: string;
   empty: string;
   all: string;
+  undo: string;
+  loadingSideleaf: string;
+  activeStatus: string;
+  openNavigationMenu: string;
+  itemOptions: string;
+  local: string;
+  capture: string;
+  showMoreRemaining: (remaining: number) => string;
+  items: string;
+  workspaces: string;
+  archived: string;
+  activeNotes: string;
+  switchLanguage: (targetLocale: string) => string;
 }
 
 export interface TodayTranslations {
@@ -54,6 +67,18 @@ export interface WorkspaceTranslations {
   capturePlaceholder: string;
   emptyHeading: string;
   emptySubheading: string;
+  newWorkspace: string;
+  workspaceName: string;
+  workspaceNamePlaceholder: string;
+  colorAccent: string;
+  descriptionOptional: string;
+  descriptionPlaceholder: string;
+  saveChanges: string;
+  createWorkspace: string;
+  closeModal: string;
+  selectColor: (color: string) => string;
+  workspaceOptions: (name: string) => string;
+  fromWorkspace: (name: string) => string;
 }
 
 export interface RecentTranslations {
@@ -61,6 +86,15 @@ export interface RecentTranslations {
   subtitle: string;
   emptyHeading: string;
   emptySubheading: string;
+  actionCapture: string;
+  actionToggleTask: string;
+  actionCompleted: string;
+  actionIncomplete: string;
+  actionConvertTask: string;
+  actionMoveWorkspace: string;
+  actionArchive: string;
+  actionDelete: string;
+  actionEdit: string;
 }
 
 export interface ArchiveTranslations {
@@ -81,6 +115,8 @@ export interface TrashTranslations {
   yesDelete: string;
   restore: string;
   permanentDelete: string;
+  deletedTimeAgo: (timeAgo: string) => string;
+  emptyWarning: string;
 }
 
 export interface CaptureTranslations {
@@ -101,6 +137,7 @@ export interface ItemTranslations {
   convertToQuote: string;
   convertToDecision: string;
   copyText: string;
+  copyLink: string;
   moveToWorkspace: string;
   scratchOption: string;
   archiveAction: string;
@@ -109,6 +146,39 @@ export interface ItemTranslations {
   decisionBadge: string;
   sourceLabel: string;
   openSource: string;
+}
+
+export interface SectionTranslations {
+  section: string;
+  addSection: string;
+  renameSection: string;
+  deleteSection: string;
+  deleteConfirmPrompt: string;
+  collapseSection: string;
+  expandSection: string;
+  unsectioned: string;
+  itemCount: string;
+  addHere: string;
+  moveSectionUp: string;
+  moveSectionDown: string;
+}
+
+export interface BulkTranslations {
+  selected: string;
+  copyLinks: string;
+  copyLinksSuccess: string;
+  moveToSection: string;
+  moveToUnsectioned: string;
+  archiveSelected: string;
+  deleteSelected: string;
+  linksDetected: string;
+  addAsSeparateLinks: string;
+  pasteAsText: string;
+  viewModeNormal: string;
+  viewModeCompact: string;
+  selectAll: string;
+  clearSelection: string;
+  noLinksSelected: string;
 }
 
 export interface SearchTranslations {
@@ -170,6 +240,13 @@ export interface SettingsTranslations {
   turkish: string;
   installApp: string;
   installAppDesc: string;
+  privacyGuarantee: string;
+  corePhilosophyLabel: string;
+  appDescription: string;
+  focusTagline: string;
+  invalidJsonError: string;
+  validationError: string;
+  allNotesExportTitle: string;
 }
 
 export interface ShortcutsTranslations {
@@ -182,17 +259,52 @@ export interface ShortcutsTranslations {
   saveBackup: string;
   closeDialog: string;
   showHelp: string;
+  shortcutsFooter: string;
 }
 
 export interface TypesTranslations {
   all: string;
   text: string;
+  note: string;
   checklist: string;
   tasks: string;
   quote: string;
   link: string;
   divider: string;
   decision: string;
+}
+
+export interface ToastTranslations {
+  undo: string;
+  dismiss: string;
+  convertedToTask: string;
+  convertedToType: (type: string) => string;
+  undoConversion: (type: string) => string;
+  movedToWorkspace: (name: string) => string;
+  undoMove: string;
+  itemArchived: string;
+  undoArchive: string;
+  itemRestored: string;
+  undoRestore: string;
+  itemMovedToTrash: string;
+  undoDelete: string;
+  itemPermanentlyDeleted: string;
+  itemsPermanentlyDeleted: (count: number) => string;
+  sectionCreated: (name: string) => string;
+  undoCreateSection: string;
+  sectionDeleted: (name: string) => string;
+  undoDeleteSection: string;
+  movedToSection: (name: string) => string;
+  undoMoveToSection: string;
+  itemsAdded: (count: number) => string;
+  undoAddItems: (count: number) => string;
+  itemsBulkMoved: (count: number, target: string) => string;
+  itemsBulkArchived: (count: number) => string;
+  itemsBulkDeleted: (count: number) => string;
+  workspaceCreated: (name: string) => string;
+  workspaceDeleted: (name: string) => string;
+  itemsImported: (count: number) => string;
+  allDataCleared: string;
 }
 
 export interface TranslationSchema {
@@ -206,8 +318,11 @@ export interface TranslationSchema {
   trash: TrashTranslations;
   capture: CaptureTranslations;
   item: ItemTranslations;
+  section: SectionTranslations;
+  bulk: BulkTranslations;
   search: SearchTranslations;
   settings: SettingsTranslations;
   shortcuts: ShortcutsTranslations;
   types: TypesTranslations;
+  toast: ToastTranslations;
 }

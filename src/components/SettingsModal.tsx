@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UserSettings, Workspace, Item, ActivityLog } from '../types';
+import { UserSettings, Workspace, Item, ActivityLog, Section } from '../types';
 import { useSideleaf } from '../hooks/useSideleaf';
 import {
   generateExportData,
@@ -39,7 +39,10 @@ interface SettingsModalProps {
     importedItems: Item[],
     importedWorkspaces: Workspace[],
     mode: 'merge' | 'replace' | 'new_workspace',
-    newWorkspaceName?: string
+    newWorkspaceName?: string,
+    importedSections?: Section[],
+    importedSettings?: UserSettings,
+    importedActivity?: ActivityLog[]
   ) => Promise<void>;
   onResetAllData: () => Promise<void>;
 }
@@ -55,13 +58,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportData,
   onResetAllData,
 }) => {
-  const { t, locale, setLocale, canInstallPwa, installPwa } = useSideleaf();
+  const { t, locale, setLocale, canInstallPwa, installPwa, sections } = useSideleaf();
   const [activeTab, setActiveTab] = useState<'appearance' | 'data' | 'keyboard' | 'about'>('appearance');
   const [importPreview, setImportPreview] = useState<{
     file: File;
     items: Item[];
     workspaces: Workspace[];
-    stats: { workspacesCount: number; itemsCount: number; activityCount: number };
+    sections?: Section[];
+    settings?: UserSettings;
+    activity?: ActivityLog[];
+    stats: { workspacesCount: number; itemsCount: number; sectionsCount?: number; activityCount: number };
     conflictingCount: number;
     exportedAt: string;
   } | null>(null);
@@ -86,12 +92,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   const handleExportJson = () => {
-    const data = generateExportData(workspaces, items, settings, activity);
+    const data = generateExportData(workspaces, items, settings, activity, sections);
     downloadJsonFile(getExportFilename(), data);
   };
 
   const handleExportMarkdown = () => {
-    const md = exportWorkspaceToMarkdown('Sideleaf All Notes', items);
+    const md = exportWorkspaceToMarkdown(t.settings.allNotesExportTitle, items);
     const dateStr = new Date().toISOString().split('T')[0];
     downloadMarkdownFile(`sideleaf-notes-${dateStr}.md`, md);
   };
@@ -107,7 +113,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const parsed = JSON.parse(evt.target?.result as string);
         const result = validateSideleafData(parsed);
         if (!result.valid || !result.data || !result.stats) {
-          setImportError(result.error || 'Failed to validate .sideleaf or .workpad file format.');
+          setImportError(result.error || t.settings.validationError);
           setImportPreview(null);
           return;
         }
@@ -119,12 +125,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           file,
           items: result.data.items,
           workspaces: result.data.workspaces,
+          sections: result.data.sections,
+          settings: result.data.settings,
+          activity: result.data.activity,
           stats: result.stats,
           conflictingCount,
           exportedAt: result.data.exportedAt || 'Unknown',
         });
       } catch (err) {
-        setImportError('Invalid JSON file format.');
+        setImportError(t.settings.invalidJsonError);
         setImportPreview(null);
       }
     };
@@ -133,7 +142,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const executeImport = async () => {
     if (!importPreview) return;
-    await onImportData(importPreview.items, importPreview.workspaces, importMode);
+    await onImportData(
+      importPreview.items,
+      importPreview.workspaces,
+      importMode,
+      undefined,
+      importPreview.sections,
+      importPreview.settings,
+      importPreview.activity
+    );
     setImportPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     onClose();
@@ -420,7 +437,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <div className="text-xs text-neutral-600 dark:text-neutral-400 space-y-1">
                       <div>
-                        <strong>{t.settings.contentsSummary}:</strong> {importPreview.stats.itemsCount} {locale === 'tr' ? 'öge' : 'items'} ({importPreview.stats.workspacesCount} {locale === 'tr' ? 'çalışma alanı' : 'workspaces'})
+                        <strong>{t.settings.contentsSummary}:</strong> {importPreview.stats.itemsCount} {t.common.items} ({importPreview.stats.workspacesCount} {t.common.workspaces})
                       </div>
                       <div>
                         <strong>{t.settings.exportedAtLabel}:</strong> {new Date(importPreview.exportedAt).toLocaleString(locale === 'tr' ? 'tr-TR' : 'en-US')}
@@ -501,7 +518,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         {t.settings.activeNotesLabel}
                       </div>
                       <div className="text-neutral-500 text-[11px]">
-                        {items.filter((i) => i.status === 'active').length} {locale === 'tr' ? 'aktif not' : 'active notes'} · {workspaces.length} {locale === 'tr' ? 'çalışma alanı' : 'workspaces'} · {items.filter((i) => i.status === 'archived').length} {locale === 'tr' ? 'arşivlenmiş' : 'archived'}
+                        {items.filter((i) => i.status === 'active').length} {t.common.activeNotes} · {workspaces.length} {t.common.workspaces} · {items.filter((i) => i.status === 'archived').length} {t.common.archived}
                       </div>
                     </div>
                   </div>
@@ -597,9 +614,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {locale === 'tr'
-                    ? 'Bilgisayar çalışmaları için sade, yerel öncelikli çalışma yüzeyi.'
-                    : 'A tiny, local-first work surface for computer work.'}
+                  {t.settings.appDescription}
                 </p>
               </div>
 
@@ -629,10 +644,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="p-3.5 rounded-lg border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2 text-xs text-neutral-600 dark:text-neutral-400">
                 <div className="flex items-center gap-2 font-medium text-neutral-800 dark:text-neutral-200">
                   <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span>{locale === 'tr' ? 'Gizlilik Garantisi' : 'Privacy Guarantee'}</span>
+                  <span>{t.settings.privacyGuarantee}</span>
                 </div>
                 <p>
-                  <strong>{locale === 'tr' ? 'Temel Felsefe:' : 'Core Philosophy:'}</strong> {t.settings.corePhilosophy}
+                  <strong>{t.settings.corePhilosophyLabel}</strong> {t.settings.corePhilosophy}
                 </p>
                 <p>
                   {t.settings.localGuarantee}
@@ -642,9 +657,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="pt-2 text-xs text-neutral-400 space-y-1">
                 <div>{t.settings.licenseNotice}</div>
                 <div>
-                  {locale === 'tr'
-                    ? 'Yüksek odaklanma ve sıfır düşünce sürtünmesi için tasarlandı.'
-                    : 'Designed & engineered for high focus and zero thought-to-capture friction.'}
+                  {t.settings.focusTagline}
                 </div>
               </div>
             </div>

@@ -1,9 +1,10 @@
-import { Item, Workspace, SearchResult } from '../types';
+import { Item, Workspace, Section, SearchResult } from '../types';
 
 export interface SearchOptions {
   query: string;
   items: Item[];
   workspaces: Workspace[];
+  sections?: Section[];
   activeWorkspaceId?: string | null;
   statusFilter?: 'all' | 'active' | 'archived';
   limit?: number;
@@ -14,6 +15,7 @@ export function searchItems(options: SearchOptions): SearchResult[] {
     query,
     items,
     workspaces,
+    sections = [],
     activeWorkspaceId,
     statusFilter = 'active',
     limit = 50,
@@ -26,6 +28,9 @@ export function searchItems(options: SearchOptions): SearchResult[] {
   const now = Date.now();
   const workspaceMap = new Map<string, string>(
     workspaces.map((w) => [w.id, w.name.toLowerCase()])
+  );
+  const sectionMap = new Map<string, string>(
+    sections.map((s) => [s.id, s.name.toLowerCase()])
   );
 
   const results: SearchResult[] = [];
@@ -67,6 +72,15 @@ export function searchItems(options: SearchOptions): SearchResult[] {
       if (wsName.includes(trimmed)) {
         score += 25;
         matchedFields.push('workspace');
+      }
+    }
+
+    // Check section name match (+25)
+    if (item.sectionId) {
+      const secName = sectionMap.get(item.sectionId) || '';
+      if (secName.includes(trimmed)) {
+        score += 25;
+        matchedFields.push('section');
       }
     }
 

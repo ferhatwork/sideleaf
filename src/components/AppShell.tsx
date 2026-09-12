@@ -20,6 +20,7 @@ import { generateExportData, getExportFilename, downloadJsonFile } from '../serv
 
 export const AppShell: React.FC = () => {
   const {
+    t,
     items,
     workspaces,
     settings,
@@ -67,10 +68,14 @@ export const AppShell: React.FC = () => {
     performUndo,
     performRedo,
     dismissToast,
+
+    // Sections
+    sections,
   } = useSideleaf();
 
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [ephemeralRevealedSectionId, setEphemeralRevealedSectionId] = useState<string | null>(null);
 
   // Global Keyboard Shortcuts (Spec Section 9 & 13 & 29)
   useEffect(() => {
@@ -78,7 +83,7 @@ export const AppShell: React.FC = () => {
       {
         key: 'space',
         ctrlOrCmd: true,
-        description: 'Quick Capture',
+        description: t.capture.quickCaptureTitle,
         allowInInputs: true,
         action: () => setIsQuickCaptureOpen(true),
       },
@@ -87,24 +92,24 @@ export const AppShell: React.FC = () => {
         key: 'space',
         ctrlOrCmd: true,
         shift: true,
-        description: 'Quick Capture Fallback',
+        description: t.shortcuts.quickCaptureAlt,
         allowInInputs: true,
         action: () => setIsQuickCaptureOpen(true),
       },
       {
         key: 'k',
         ctrlOrCmd: true,
-        description: 'Search',
+        description: t.common.search,
         allowInInputs: true,
         action: () => setIsSearchOpen(true),
       },
       {
         key: 's',
         ctrlOrCmd: true,
-        description: 'Save / Export Backup',
+        description: t.shortcuts.saveBackup,
         allowInInputs: true,
         action: () => {
-          const data = generateExportData(workspaces, items, settings, activity);
+          const data = generateExportData(workspaces, items, settings, activity, sections);
           downloadJsonFile(getExportFilename(), data);
         },
       },
@@ -112,7 +117,7 @@ export const AppShell: React.FC = () => {
       {
         key: 'z',
         ctrlOrCmd: true,
-        description: 'Undo last action',
+        description: t.shortcuts.undo,
         allowInInputs: false,
         action: () => performUndo(),
       },
@@ -121,22 +126,23 @@ export const AppShell: React.FC = () => {
         key: 'z',
         ctrlOrCmd: true,
         shift: true,
-        description: 'Redo previously undone action',
+        description: t.shortcuts.redo,
         allowInInputs: false,
         action: () => performRedo(),
       },
       {
         key: '?',
         shift: true,
-        description: 'Keyboard Shortcuts',
+        description: t.settings.keyboardTitle,
         allowInInputs: false,
         action: () => setIsShortcutsOpen(true),
       },
       {
         key: 'Escape',
-        description: 'Close Modals',
+        description: t.shortcuts.closeDialog,
         allowInInputs: true,
         action: () => {
+          if (isQuickCaptureOpen) return;
           setIsQuickCaptureOpen(false);
           setIsSearchOpen(false);
           setIsSettingsOpen(false);
@@ -160,6 +166,7 @@ export const AppShell: React.FC = () => {
     setIsSettingsOpen,
     setIsShortcutsOpen,
     setIsWorkspaceModalOpen,
+    t,
   ]);
 
   // Counts
@@ -185,12 +192,16 @@ export const AppShell: React.FC = () => {
 
   const handleSelectItemFromSearch = (item: Item) => {
     if (item.status === 'archived') {
+      setEphemeralRevealedSectionId(null);
       setActiveView({ type: 'archive' });
     } else if (item.status === 'deleted') {
+      setEphemeralRevealedSectionId(null);
       setActiveView({ type: 'trash' });
     } else if (item.workspaceId) {
+      setEphemeralRevealedSectionId(item.sectionId || null);
       setActiveView({ type: 'workspace', workspaceId: item.workspaceId });
     } else {
+      setEphemeralRevealedSectionId(null);
       setActiveView({ type: 'scratch' });
     }
   };
@@ -203,7 +214,7 @@ export const AppShell: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-sideleaf-light-bg dark:bg-sideleaf-dark-bg text-neutral-400 font-mono text-xs">
-        Loading Sideleaf...
+        {t.common.loadingSideleaf}
       </div>
     );
   }
@@ -285,7 +296,7 @@ export const AppShell: React.FC = () => {
                 workspace={
                   workspaces.find((w) => w.id === activeView.workspaceId) || {
                     id: activeView.workspaceId,
-                    name: 'Workspace',
+                    name: t.workspace.workspaceName,
                     createdAt: Date.now(),
                     updatedAt: Date.now(),
                   }
@@ -304,6 +315,8 @@ export const AppShell: React.FC = () => {
                   setIsWorkspaceModalOpen(true);
                 }}
                 onDeleteWorkspace={deleteWorkspace}
+                ephemeralRevealedSectionId={ephemeralRevealedSectionId}
+                onClearEphemeralReveal={() => setEphemeralRevealedSectionId(null)}
               />
             )}
 

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { ItemType } from '../types';
+import { ItemType, BulkParseResult } from '../types';
 import { ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
+import { parseBulkInput } from '../utils/linkParser';
 import { useSideleaf } from '../hooks/useSideleaf';
 
 export interface QuickInputHandle {
@@ -13,18 +14,23 @@ interface QuickInputProps {
     content: string;
     type: ItemType;
     workspaceId?: string | null;
+    sectionId?: string | null;
     sourceUrl?: string;
   }) => Promise<unknown>;
   defaultWorkspaceId?: string | null;
+  defaultSectionId?: string | null;
   placeholder?: string;
   autoFocus?: boolean;
+  onMultiLinkDetected?: (result: BulkParseResult) => void;
 }
 
 export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   onAdd,
   defaultWorkspaceId = null,
+  defaultSectionId = null,
   placeholder,
   autoFocus = false,
+  onMultiLinkDetected,
 }, ref) => {
   const { t } = useSideleaf();
   const effectivePlaceholder = placeholder || t.capture.focusedPlaceholder;
@@ -63,6 +69,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
         content: trimmed,
         type: overrideType || type,
         workspaceId: defaultWorkspaceId,
+        sectionId: defaultSectionId,
       });
       setContent('');
       setType('text');
@@ -91,6 +98,14 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = e.clipboardData.getData('text');
     if (!pasted) return;
+
+    // Check for multi-link paste first
+    const parsed = parseBulkInput(pasted);
+    if (parsed.isMultiLink && onMultiLinkDetected) {
+      e.preventDefault();
+      onMultiLinkDetected(parsed);
+      return;
+    }
 
     const trimmed = pasted.trim();
     const urls = extractUrls(trimmed);
