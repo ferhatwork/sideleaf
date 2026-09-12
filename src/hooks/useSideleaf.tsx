@@ -355,10 +355,10 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
     const timer = setTimeout(() => {
-      syncRemindersToRuntime(items, reminders);
+      syncRemindersToRuntime(items, reminders, currentLocale);
     }, 350);
     return () => clearTimeout(timer);
-  }, [items, reminders, isLoading]);
+  }, [items, reminders, currentLocale, isLoading]);
 
   const applyTheme = (theme: 'light' | 'dark' | 'system') => {
     const root = document.documentElement;

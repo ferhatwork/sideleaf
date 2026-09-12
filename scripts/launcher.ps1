@@ -90,9 +90,22 @@ function Remove-RuntimeMetadata {
 }
 
 $remindersJsonPath = Join-Path $runtimeDir "reminders.json"
+$script:runtimeLocale = "tr"
 
-function Send-SideleafNotification([string]$title, [string]$message, [string]$itemId) {
-    $launchUrl = if ([string]::IsNullOrWhiteSpace($itemId)) { $ORIGIN } else { "$ORIGIN/?item=$itemId" }
+function Send-SideleafNotification([string]$title, [string]$message, [string]$itemId, [string]$remId) {
+    $launchUrl = if ([string]::IsNullOrWhiteSpace($itemId)) { 
+        "$ORIGIN/__sideleaf/reminder-action?action=open&id=$remId" 
+    } else { 
+        "$ORIGIN/__sideleaf/reminder-action?action=open&id=$remId&item=$itemId" 
+    }
+    $openUrl = $launchUrl
+    $snoozeUrl = "$ORIGIN/__sideleaf/reminder-action?action=snooze&id=$remId&item=$itemId"
+    $dismissUrl = "$ORIGIN/__sideleaf/reminder-action?action=dismiss&id=$remId&item=$itemId"
+
+    $isEn = ($script:runtimeLocale -eq "en")
+    $openLabel = if ($isEn) { "Open in Sideleaf" } else { "Sideleaf'te A$([char]0x00E7)" }
+    $snoozeLabel = if ($isEn) { "Snooze 10 min" } else { "10 dk Ertele" }
+    $dismissLabel = if ($isEn) { "Dismiss" } else { "Kapat" }
 
     # 1. Try modern WinRT Toast Notification (Windows 10 / 11)
     try {
@@ -101,10 +114,16 @@ function Send-SideleafNotification([string]$title, [string]$message, [string]$it
 
         $safeTitle = [System.Security.SecurityElement]::Escape($title)
         $safeMessage = [System.Security.SecurityElement]::Escape($message)
-        $safeUrl = [System.Security.SecurityElement]::Escape($launchUrl)
+        $safeLaunch = [System.Security.SecurityElement]::Escape($launchUrl)
+        $safeOpen = [System.Security.SecurityElement]::Escape($openUrl)
+        $safeSnooze = [System.Security.SecurityElement]::Escape($snoozeUrl)
+        $safeDismiss = [System.Security.SecurityElement]::Escape($dismissUrl)
+        $safeOpenLabel = [System.Security.SecurityElement]::Escape($openLabel)
+        $safeSnoozeLabel = [System.Security.SecurityElement]::Escape($snoozeLabel)
+        $safeDismissLabel = [System.Security.SecurityElement]::Escape($dismissLabel)
 
         $template = @"
-<toast activationType="protocol" launch="$safeUrl">
+<toast scenario="reminder" activationType="protocol" launch="$safeLaunch">
     <visual>
         <binding template="ToastGeneric">
             <text>$safeTitle</text>
@@ -112,8 +131,11 @@ function Send-SideleafNotification([string]$title, [string]$message, [string]$it
         </binding>
     </visual>
     <actions>
-        <action content="Sideleaf'te Aç" arguments="$safeUrl" activationType="protocol"/>
+        <action content="$safeOpenLabel" arguments="$safeOpen" activationType="protocol"/>
+        <action content="$safeSnoozeLabel" arguments="$safeSnooze" activationType="protocol"/>
+        <action content="$safeDismissLabel" arguments="$safeDismiss" activationType="protocol"/>
     </actions>
+    <audio src="ms-winsoundevent:Notification.Reminder" loop="false" />
 </toast>
 "@
 
@@ -144,14 +166,40 @@ function Send-SideleafNotification([string]$title, [string]$message, [string]$it
     }
 }
 
+function Set-RemProp($obj, [string]$propName, $value) {
+    if ($obj -ne $null) {
+        $obj | Add-Member -MemberType NoteProperty -Name $propName -Value $value -Force
+    }
+}
+
 function Get-RuntimeReminders {
     if (Test-Path $remindersJsonPath) {
         try {
-            $raw = Get-Content $remindersJsonPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+            $raw = [System.IO.File]::ReadAllText($remindersJsonPath, [System.Text.Encoding]::UTF8)
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
                 $parsed = $raw | ConvertFrom-Json
-                if ($parsed -and $parsed.reminders) {
-                    return [System.Collections.ArrayList]@($parsed.reminders)
+                if ($parsed) {
+                    if ($parsed.locale) {
+                        $script:runtimeLocale = [string]$parsed.locale
+                    }
+                    if ($parsed.reminders) {
+                        $res = [System.Collections.ArrayList]@()
+                        foreach ($r in $parsed.reminders) {
+                            if ($r -is [PSCustomObject]) {
+                                if (-not $r.PSObject.Properties['state']) {
+                                    $r | Add-Member -MemberType NoteProperty -Name "state" -Value "pending" -Force
+                                }
+                                if (-not $r.PSObject.Properties['snoozedUntil']) {
+                                    $r | Add-Member -MemberType NoteProperty -Name "snoozedUntil" -Value $null -Force
+                                }
+                                if (-not $r.PSObject.Properties['lastTriggeredAt']) {
+                                    $r | Add-Member -MemberType NoteProperty -Name "lastTriggeredAt" -Value $null -Force
+                                }
+                            }
+                            [void]$res.Add($r)
+                        }
+                        return $res
+                    }
                 }
             }
         } catch {}
@@ -159,11 +207,15 @@ function Get-RuntimeReminders {
     return [System.Collections.ArrayList]@()
 }
 
-function Save-RuntimeReminders($remindersList) {
+function Save-RuntimeReminders($remindersList, $locale = $null) {
     try {
+        if (-not $locale) {
+            $locale = $script:runtimeLocale
+        }
         $payload = @{
             version   = 1
             updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            locale    = if ($locale) { $locale } else { "tr" }
             reminders = @($remindersList)
         }
         $json = $payload | ConvertTo-Json -Depth 5
@@ -215,30 +267,59 @@ function Check-And-Fire-DueReminders {
     $changed = $false
 
     foreach ($rem in $script:activeReminders) {
-        if ($rem.enabled -ne $true) { continue }
-        if ([long]$rem.scheduledAt -gt $nowMs) { continue }
-        if ($rem.lastTriggeredAt -and [long]$rem.lastTriggeredAt -ge [long]$rem.scheduledAt) { continue }
+        try {
+            if ($rem.enabled -ne $true) { continue }
 
-        # Trigger notification
-        $title = "Sideleaf"
-        $msg = if ($rem.itemContent) { [string]$rem.itemContent } else { "Hatırlatıcı" }
-        $itemId = if ($rem.itemId) { [string]$rem.itemId } else { "" }
+            $state = if ($rem.state) { [string]$rem.state } else { "pending" }
 
-        Send-SideleafNotification $title $msg $itemId
-
-        $rem.lastTriggeredAt = $nowMs
-        $changed = $true
-
-        if ($rem.type -eq "once") {
-            $rem.enabled = $false
-        } elseif ($rem.type -eq "daily" -or $rem.type -eq "weekly") {
-            $nextMs = Calculate-NextOccurrenceMs $rem $nowMs
-            if ($nextMs) {
-                $rem.scheduledAt = $nextMs
-            } else {
-                $rem.enabled = $false
+            # Check recurring rollover if fired previously and a new cycle has arrived
+            if ($rem.type -ne "once" -and $state -eq "fired") {
+                $nextCycle = Calculate-NextOccurrenceMs $rem $rem.lastTriggeredAt
+                if ($nextCycle -and $nowMs -ge $nextCycle) {
+                    Set-RemProp $rem "scheduledAt" $nextCycle
+                    $state = "pending"
+                    Set-RemProp $rem "state" "pending"
+                    Set-RemProp $rem "snoozedUntil" $null
+                    $changed = $true
+                }
             }
-        }
+
+            # Check snoozed state
+            if ($state -eq "snoozed") {
+                if ($rem.snoozedUntil -and $nowMs -ge [long]$rem.snoozedUntil) {
+                    # Snooze period expired, re-trigger
+                    Set-RemProp $rem "snoozedUntil" $null
+                    # will be fired below
+                } else {
+                    # Still snoozing
+                    continue
+                }
+            } elseif ($state -eq "fired") {
+                # Already fired for this occurrence; do not duplicate notification loop
+                continue
+            } elseif ($state -eq "dismissed" -or $state -eq "acknowledged") {
+                continue
+            } else {
+                # Pending
+                if ([long]$rem.scheduledAt -gt $nowMs) { continue }
+                if ($rem.lastTriggeredAt -and [long]$rem.lastTriggeredAt -ge [long]$rem.scheduledAt) { continue }
+            }
+
+            # Trigger notification
+            $itemId = if ($rem.itemId) { [string]$rem.itemId } else { "" }
+            $remId = if ($rem.id) { [string]$rem.id } else { "" }
+            $isEn = ($script:runtimeLocale -eq "en")
+            $bullet = [char]0x2022
+            $iDotless = [char]0x0131
+            $title = if ($isEn) { "Sideleaf • Reminder" } else { "Sideleaf $bullet Hat${iDotless}rlat${iDotless}c${iDotless}" }
+            $msg = if ($rem.itemContent) { [string]$rem.itemContent } else { if ($isEn) { "Reminder" } else { "Hat${iDotless}rlat${iDotless}c${iDotless}" } }
+
+            [void](Send-SideleafNotification $title $msg $itemId $remId)
+
+            Set-RemProp $rem "lastTriggeredAt" $nowMs
+            Set-RemProp $rem "state" "fired"
+            $changed = $true
+        } catch {}
     }
 
     if ($changed) {
@@ -707,7 +788,7 @@ function Run-HttpServer {
             # Periodic check for due reminders even when browser is closed
             if ((Get-Date) -gt $script:lastReminderCheck.AddSeconds(3)) {
                 $script:lastReminderCheck = Get-Date
-                Check-And-Fire-DueReminders
+                [void](Check-And-Fire-DueReminders)
             }
 
             if (-not $hasReq) {
@@ -784,8 +865,44 @@ function Run-HttpServer {
                         try {
                             $parsed = $body | ConvertFrom-Json
                             if ($parsed -and $parsed.reminders -ne $null) {
-                                [System.IO.File]::WriteAllText($remindersJsonPath, $body, [System.Text.Encoding]::UTF8)
-                                $script:activeReminders = [System.Collections.ArrayList]@($parsed.reminders)
+                                if ($parsed.locale) {
+                                    $script:runtimeLocale = [string]$parsed.locale
+                                }
+
+                                $existingMap = @{}
+                                if ($script:activeReminders) {
+                                    foreach ($old in $script:activeReminders) {
+                                        if ($old.id) {
+                                            $existingMap[[string]$old.id] = $old
+                                        }
+                                    }
+                                }
+
+                                $newReminders = [System.Collections.ArrayList]@()
+                                foreach ($newRem in $parsed.reminders) {
+                                    $remIdStr = if ($newRem.id) { [string]$newRem.id } else { "" }
+                                    if ($remIdStr -and $existingMap.ContainsKey($remIdStr)) {
+                                        $oldRem = $existingMap[$remIdStr]
+                                        if ([long]$oldRem.scheduledAt -eq [long]$newRem.scheduledAt) {
+                                            if ($oldRem.snoozedUntil -and -not $newRem.snoozedUntil) {
+                                                $newRem | Add-Member -MemberType NoteProperty -Name "snoozedUntil" -Value $oldRem.snoozedUntil -Force
+                                            }
+                                            if ($oldRem.state -and -not $newRem.state) {
+                                                $newRem | Add-Member -MemberType NoteProperty -Name "state" -Value $oldRem.state -Force
+                                            }
+                                            if ($oldRem.lastTriggeredAt -and -not $newRem.lastTriggeredAt) {
+                                                $newRem | Add-Member -MemberType NoteProperty -Name "lastTriggeredAt" -Value $oldRem.lastTriggeredAt -Force
+                                            }
+                                        }
+                                    }
+                                    if (-not $newRem.state) {
+                                        $newRem | Add-Member -MemberType NoteProperty -Name "state" -Value "pending" -Force
+                                    }
+                                    [void]$newReminders.Add($newRem)
+                                }
+
+                                $script:activeReminders = $newReminders
+                                Save-RuntimeReminders $script:activeReminders $script:runtimeLocale
                             }
                         } catch {}
 
@@ -799,6 +916,236 @@ function Run-HttpServer {
                         $response.OutputStream.Write($bytes, 0, $bytes.Length)
                         continue
                     }
+                }
+
+                # Internal local API: /__sideleaf/reminder-action
+                if ($unescaped -eq "/__sideleaf/reminder-action") {
+                    $reqHost = $request.Headers["Host"]
+                    $origin = $request.Headers["Origin"]
+                    $referer = $request.Headers["Referer"]
+                    $secSite = $request.Headers["Sec-Fetch-Site"]
+
+                    $validHost = ($reqHost -eq "127.0.0.1:$PORT" -or $reqHost -eq "localhost:$PORT")
+                    $validOrigin = ([string]::IsNullOrEmpty($origin) -or $origin -eq $ORIGIN -or $origin -eq "http://localhost:$PORT")
+                    $validReferer = ([string]::IsNullOrEmpty($referer) -or $referer.StartsWith($PREFIX) -or $referer.StartsWith("http://localhost:$PORT/"))
+                    $validSecSite = ([string]::IsNullOrEmpty($secSite) -or $secSite -eq "same-origin" -or $secSite -eq "none")
+
+                    if (-not ($validHost -and $validOrigin -and $validReferer -and $validSecSite)) {
+                        $response.StatusCode = 403
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes("403 Forbidden")
+                        $response.ContentType = "text/plain; charset=utf-8"
+                        $response.ContentLength64 = $bytes.Length
+                        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                        continue
+                    }
+
+                    $action = $request.QueryString["action"]
+                    $remId = $request.QueryString["id"]
+                    $itemId = $request.QueryString["item"]
+
+                    if (-not $script:activeReminders -or $script:activeReminders.Count -eq 0) {
+                        $script:activeReminders = Get-RuntimeReminders
+                    }
+
+                    $targetRem = $null
+                    if ($remId -and $script:activeReminders) {
+                        foreach ($r in $script:activeReminders) {
+                            if ($r.id -eq $remId) {
+                                $targetRem = $r
+                                break
+                            }
+                        }
+                    }
+
+                    $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                    $isEn = ($script:runtimeLocale -eq "en")
+
+                    if ($action -eq "snooze") {
+                        if ($targetRem) {
+                            Set-RemProp $targetRem "snoozedUntil" ($nowMs + (10 * 60 * 1000))
+                            Set-RemProp $targetRem "state" "snoozed"
+                            Set-RemProp $targetRem "enabled" $true
+                            Save-RuntimeReminders $script:activeReminders
+                        }
+
+                        $isJson = ($request.Headers["Accept"] -and $request.Headers["Accept"].Contains("application/json")) -or ($request.Headers["X-Sideleaf-Client"] -ne $null)
+                        if ($isJson) {
+                            $respJson = @{ ok = $true; action = "snooze"; id = $remId; snoozedUntil = if ($targetRem) { $targetRem.snoozedUntil } else { $null } } | ConvertTo-Json
+                            $bytes = [System.Text.Encoding]::UTF8.GetBytes($respJson)
+                            $response.StatusCode = 200
+                            $response.ContentType = "application/json; charset=utf-8"
+                            $response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+                            $response.Headers.Add("X-Sideleaf-Server", "1")
+                            $response.ContentLength64 = $bytes.Length
+                            $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                            continue
+                        }
+
+                        $cardTitle = "Sideleaf"
+                        $cardMsg = if ($isEn) { "Reminder snoozed for 10 minutes." } else { "Hat$([char]0x0131)rlat$([char]0x0131)c$([char]0x0131) 10 dakika ertelendi." }
+                        $closeBtn = if ($isEn) { "Close" } else { "Kapat" }
+                        $html = @"
+<!DOCTYPE html>
+<html lang="$(if ($isEn) { "en" } else { "tr" })">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sideleaf</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fafafa; color: #18181b; }
+  .card { text-align: center; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e4e4e7; max-width: 360px; width: 90%; }
+  h2 { margin: 0 0 8px 0; font-size: 17px; font-weight: 600; color: #09090b; }
+  p { margin: 0 0 16px 0; font-size: 14px; color: #71717a; }
+  .btn { display: inline-block; padding: 6px 16px; border-radius: 6px; background: #f4f4f5; color: #18181b; font-size: 13px; font-weight: 500; border: 1px solid #e4e4e7; cursor: pointer; }
+  .btn:hover { background: #e4e4e7; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #121214; color: #f4f4f5; }
+    .card { background: #18181b; border-color: #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    h2 { color: #fafafa; }
+    p { color: #a1a1aa; }
+    .btn { background: #27272a; color: #f4f4f5; border-color: #3f3f46; }
+    .btn:hover { background: #3f3f46; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>$cardTitle</h2>
+  <p>$cardMsg</p>
+  <button class="btn" onclick="window.close()">$closeBtn</button>
+</div>
+<script>
+  setTimeout(function() { try { window.close(); } catch(e){} }, 2000);
+</script>
+</body>
+</html>
+"@
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes($html)
+                        $response.StatusCode = 200
+                        $response.ContentType = "text/html; charset=utf-8"
+                        $response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+                        $response.Headers.Add("X-Sideleaf-Server", "1")
+                        $response.ContentLength64 = $bytes.Length
+                        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                        continue
+                    }
+
+                    if ($action -eq "dismiss") {
+                        if ($targetRem) {
+                            Set-RemProp $targetRem "snoozedUntil" $null
+                            Set-RemProp $targetRem "state" "dismissed"
+                            if ($targetRem.type -eq "once") {
+                                Set-RemProp $targetRem "enabled" $false
+                            } else {
+                                $nextMs = Calculate-NextOccurrenceMs $targetRem $nowMs
+                                if ($nextMs) {
+                                    Set-RemProp $targetRem "scheduledAt" $nextMs
+                                    Set-RemProp $targetRem "state" "pending"
+                                    Set-RemProp $targetRem "lastTriggeredAt" $null
+                                } else {
+                                    Set-RemProp $targetRem "enabled" $false
+                                }
+                            }
+                            Save-RuntimeReminders $script:activeReminders
+                        }
+
+                        $isJson = ($request.Headers["Accept"] -and $request.Headers["Accept"].Contains("application/json")) -or ($request.Headers["X-Sideleaf-Client"] -ne $null)
+                        if ($isJson) {
+                            $respJson = @{ ok = $true; action = "dismiss"; id = $remId; state = if ($targetRem) { $targetRem.state } else { $null } } | ConvertTo-Json
+                            $bytes = [System.Text.Encoding]::UTF8.GetBytes($respJson)
+                            $response.StatusCode = 200
+                            $response.ContentType = "application/json; charset=utf-8"
+                            $response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+                            $response.Headers.Add("X-Sideleaf-Server", "1")
+                            $response.ContentLength64 = $bytes.Length
+                            $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                            continue
+                        }
+
+                        $cardTitle = "Sideleaf"
+                        $cardMsg = if ($isEn) { "Reminder dismissed." } else { "Hat$([char]0x0131)rlat$([char]0x0131)c$([char]0x0131) kapat$([char]0x0131)ld$([char]0x0131)." }
+                        $closeBtn = if ($isEn) { "Close" } else { "Kapat" }
+                        $html = @"
+<!DOCTYPE html>
+<html lang="$(if ($isEn) { "en" } else { "tr" })">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sideleaf</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fafafa; color: #18181b; }
+  .card { text-align: center; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e4e4e7; max-width: 360px; width: 90%; }
+  h2 { margin: 0 0 8px 0; font-size: 17px; font-weight: 600; color: #09090b; }
+  p { margin: 0 0 16px 0; font-size: 14px; color: #71717a; }
+  .btn { display: inline-block; padding: 6px 16px; border-radius: 6px; background: #f4f4f5; color: #18181b; font-size: 13px; font-weight: 500; border: 1px solid #e4e4e7; cursor: pointer; }
+  .btn:hover { background: #e4e4e7; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #121214; color: #f4f4f5; }
+    .card { background: #18181b; border-color: #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    h2 { color: #fafafa; }
+    p { color: #a1a1aa; }
+    .btn { background: #27272a; color: #f4f4f5; border-color: #3f3f46; }
+    .btn:hover { background: #3f3f46; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>$cardTitle</h2>
+  <p>$cardMsg</p>
+  <button class="btn" onclick="window.close()">$closeBtn</button>
+</div>
+<script>
+  setTimeout(function() { try { window.close(); } catch(e){} }, 2000);
+</script>
+</body>
+</html>
+"@
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes($html)
+                        $response.StatusCode = 200
+                        $response.ContentType = "text/html; charset=utf-8"
+                        $response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+                        $response.Headers.Add("X-Sideleaf-Server", "1")
+                        $response.ContentLength64 = $bytes.Length
+                        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                        continue
+                    }
+
+                    if ($action -eq "open") {
+                        if ($targetRem) {
+                            Set-RemProp $targetRem "state" "acknowledged"
+                            Set-RemProp $targetRem "snoozedUntil" $null
+                            if ($targetRem.type -eq "once") {
+                                Set-RemProp $targetRem "enabled" $false
+                            } else {
+                                $nextMs = Calculate-NextOccurrenceMs $targetRem $nowMs
+                                if ($nextMs) {
+                                    Set-RemProp $targetRem "scheduledAt" $nextMs
+                                    Set-RemProp $targetRem "state" "pending"
+                                    Set-RemProp $targetRem "lastTriggeredAt" $null
+                                } else {
+                                    Set-RemProp $targetRem "enabled" $false
+                                }
+                            }
+                            Save-RuntimeReminders $script:activeReminders
+                        }
+
+                        $targetRedirect = if ([string]::IsNullOrWhiteSpace($itemId)) { "/" } else { "/?item=$itemId" }
+                        $response.StatusCode = 302
+                        $response.Headers.Add("Location", $targetRedirect)
+                        $response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate")
+                        $response.Headers.Add("X-Sideleaf-Server", "1")
+                        $response.ContentLength64 = 0
+                        $response.Close()
+                        continue
+                    }
+
+                    $response.StatusCode = 400
+                    $bytes = [System.Text.Encoding]::UTF8.GetBytes("400 Bad Request")
+                    $response.ContentType = "text/plain; charset=utf-8"
+                    $response.ContentLength64 = $bytes.Length
+                    $response.OutputStream.Write($bytes, 0, $bytes.Length)
+                    continue
                 }
 
                 $relPath = $unescaped.TrimStart('/')
@@ -880,7 +1227,7 @@ function Run-HttpServer {
             }
         }
     } catch {
-        # Shutdown or loop termination
+        # Server termination or error
     } finally {
         if ($listener -ne $null) {
             try {

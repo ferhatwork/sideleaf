@@ -54,11 +54,14 @@ export interface RuntimeReminder {
   weekdays?: number[];
   enabled: boolean;
   lastTriggeredAt?: number;
+  snoozedUntil?: number | null;
+  state?: 'pending' | 'fired' | 'snoozed' | 'dismissed' | 'acknowledged';
 }
 
 export interface RuntimeRemindersPayload {
   version: 1;
   updatedAt: string;
+  locale?: Locale;
   reminders: RuntimeReminder[];
 }
 

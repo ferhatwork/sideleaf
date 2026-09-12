@@ -1,4 +1,4 @@
-import { Item, Reminder, RuntimeReminder, RuntimeRemindersPayload } from '../types';
+import { Item, Reminder, RuntimeReminder, RuntimeRemindersPayload, Locale } from '../types';
 
 const RUNTIME_REMINDERS_ENDPOINT = '/__sideleaf/reminders';
 
@@ -37,7 +37,8 @@ export async function isLocalRuntimeAvailable(): Promise<boolean> {
  */
 export async function syncRemindersToRuntime(
   items: Item[],
-  reminders: Reminder[]
+  reminders: Reminder[],
+  locale: Locale = 'tr'
 ): Promise<boolean> {
   try {
     const activeItemMap = new Map(
@@ -66,6 +67,7 @@ export async function syncRemindersToRuntime(
     const payload: RuntimeRemindersPayload = {
       version: 1,
       updatedAt: new Date().toISOString(),
+      locale,
       reminders: schedulableReminders,
     };
 

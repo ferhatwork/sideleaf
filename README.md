@@ -9,71 +9,109 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue.svg" alt="License: PolyForm Noncommercial 1.0.0" /></a>
   <a href="https://github.com/ferhatwork/sideleaf/actions/workflows/build.yml"><img src="https://github.com/ferhatwork/sideleaf/actions/workflows/build.yml/badge.svg" alt="CI" /></a>
-  <a href="#development"><img src="https://img.shields.io/badge/Tests-26%20passed-success.svg" alt="Tests" /></a>
+  <a href="#development"><img src="https://img.shields.io/badge/Tests-158%20passed-success.svg" alt="Tests" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7-3178c6.svg" alt="TypeScript" /></a>
 </p>
 
-Sideleaf is a lightweight, local-first work surface for capturing thoughts, notes, links, and small tasks while working at a computer.
+Sideleaf is a lightweight, local-first work surface for capturing thoughts, notes, links, and daily tasks while working at a computer.
 
-It is deliberately designed without the clutter and friction of complex tools, functioning like a quiet scratchpad sitting right beside your keyboard.
+Designed as a digital replacement for scratch paper beside your keyboard, Sideleaf eliminates friction and clutter. No accounts, no cloud dependencies, and zero telemetry—just clean, instant capture with complete local data ownership.
 
 ---
 
 ## Why Sideleaf?
 
-- **Digital Paper, Not a Dashboard**: Designed like a sheet of paper beside your keyboard. No card-heavy clutter, no KPI counters, and no forced categories.
-- **Capture First, Structure Later**: Keep notes as raw scratchpad lines, or transform them into checklist tasks (`Ctrl+Enter`), architectural decisions, or quotes when context demands it.
-- **Fast Thought Capture**: Press `Ctrl+Space` (or `Cmd+Space`) anywhere to capture thoughts in under 1 second without choosing folders or note types.
-- **Keyboard-First Ergonomics**: Every primary interaction—from capturing thoughts to searching memory and marking tasks—is accessible entirely via keyboard shortcuts.
-- **Local-First & Private**: Notes and workspaces stay locally on your device in your browser's IndexedDB. Zero accounts required, zero server dependencies, and zero trackers.
-- **Sub-Millisecond Memory**: Press `Ctrl+K` for an instant keyboard-driven search palette with multi-factor relevance ranking showing context snippets ("What was I doing?").
-- **Lightweight Bundle**: Static production bundle is under 105 kB gzipped with sub-second startup.
-- **PWA & Offline Ready**: Works completely with network connections turned off or on airplane mode.
+- **Digital Paper, Not a Dashboard**: Designed like a sheet of paper beside your keyboard. No card clutter, no complex Kanban boards, no KPI counters, and no forced hierarchies.
+- **Capture First, Structure Later**: Jot thoughts as raw scratch lines in seconds, or convert them into checklist tasks, decisions, or quotes when context demands it.
+- **Instant Quick Capture (`Ctrl+Space`)**: Open the capture overlay from anywhere in under a second without losing focus or context.
+- **Keyboard-First Ergonomics**: Every primary interaction—from capturing thoughts to searching memory, toggling tasks, and navigating sections—is accessible via keyboard shortcuts.
+- **Local-First & Private**: Notes, workspaces, and reminders reside locally on your device in your browser's IndexedDB. Zero accounts, zero server dependencies, and zero trackers.
+- **Sub-Millisecond Search (`Ctrl+K`)**: Multi-factor relevance ranking across titles, content, tags, and source links with context snippets.
+- **Lightweight Production Bundle**: Static build is under 115 kB gzipped with sub-second launch.
+- **PWA & Offline Ready**: Fully functional offline with zero network connectivity.
 
 ---
 
 ## Core Features
 
-- **Quick Capture Overlay (`Ctrl+Space`)**: Capture thoughts instantly without switching away from your current context.
-- **Scratch Surface**: An unorganized capture stream for thoughts that don't need a dedicated home yet.
-- **Contextual Workspaces**: Group notes by project or initiative only when the work demands it.
-- **Sub-Millisecond Search (`Ctrl+K`)**: Real-time multi-factor search across titles, content, tags, and source links.
-- **Data Portability**: One-click exports to versioned `.sideleaf` JSON backup files or standard Markdown (`.md`). Seamless backwards compatibility for legacy `.workpad` files.
-- **Localization**: Full built-in English and Turkish support with instant runtime language switching.
+- **Scratch Surface**: An unorganized capture stream for spontaneous thoughts that don't need a dedicated home yet.
+- **Today View**: A dedicated daily focus view gathering active tasks and reminders scheduled for today.
+- **Contextual Workspaces & Sections**: Group notes by initiative or project, organized into collapsible, reorderable sections.
+- **Versatile Item Types**: Plain text, checklist tasks (`Ctrl+Enter`), architectural decisions, quotes, source links, and visual dividers.
+- **Quick Capture Overlay (`Ctrl+Space`)**: Floating quick-entry bar with direct Workspace and Section destination selection.
+- **Sub-Millisecond Search (`Ctrl+K`)**: Instant keyboard-driven command palette searching content, tags, and links.
+- **Compact Mode**: High-density view toggle for maximizing visible notes on screen.
+- **Link Capture & Multi-Link Paste**: Automatic URL detection, title parsing, and batch import when pasting multiple links simultaneously.
+- **Bulk Selection & Actions**: Group-level and section-level multi-select to move, archive, or delete multiple items at once.
+- **Archive & Trash**: Safely store completed work in the Archive or move items to Trash with full recovery support.
+- **Undo / Redo (`Ctrl+Z` / `Ctrl+Shift+Z`)**: Multi-step history for text edits, deletions, and structural reorganizations.
+- **Bilingual Support**: Instant switching between Turkish and English localization.
+- **Light & Dark Themes**: Thoughtfully calibrated high-contrast light and dark modes.
 
 ---
 
-## How to Use
+## Reminders
 
-### Use Sideleaf
+Sideleaf includes a lightweight, local reminder system designed around daily computer work—not a calendar or project management suite, but simple reminders attached directly to your notes.
 
-1. **Open Sideleaf** (double-click `Sideleaf.bat` on Windows, run `./Sideleaf.sh` on macOS/Linux, or install as a PWA).
-2. **Start writing** — no account, no setup, and no folder selection required.
-3. **Press `Ctrl + Space`** (or `Cmd + Space`) for Quick Capture from anywhere.
-4. **Your data is stored locally** in your browser's IndexedDB.
+### Capabilities
 
-### End-User Launchers
+- **Multiple Reminders per Item**: Attach one or more scheduled alerts to any note or checklist item.
+- **Flexible Recurrence**: Support for **Once** (single alert), **Daily** (repeats every day at a set time), and **Weekly** (repeats on selected weekdays).
+- **Weekday Scheduling**: Select specific days of the week (e.g., Monday through Friday) for recurring reminders.
+- **Background Runtime Execution**: Reminders are monitored by the local runtime process, firing reliably even when the browser window or PWA is closed.
+- **Persistent Windows Notifications**: Uses Windows 10/11 WinRT `scenario="reminder"` toast notifications that stay visible in the Windows Action Center rather than vanishing as transient banners.
+- **Native Windows Audio**: Plays the native Windows reminder chime (`ms-winsoundevent:Notification.Reminder`) without bundling custom audio files.
+- **Interactive Notification Actions**:
+  - **Open in Sideleaf** (`Sideleaf'te Aç`): Launches Sideleaf and deep-links directly to the focused note (`/?item=<id>`).
+  - **Snooze 10 min** (`10 dk Ertele`): Postpones the notification by 10 minutes without duplicate triggers, persisting across server restarts.
+  - **Dismiss** (`Kapat`): Silences the notification, marks one-time alerts as completed, and advances recurring schedules to the next occurrence.
 
-Sideleaf is designed so that non-technical users do not need Node.js, npm, a terminal, or a dev server.
+> [!NOTE]
+> Reliable background notifications while the application window is closed are currently Windows-focused, powered by the local PowerShell runtime. On macOS and Linux, reminders operate via standard browser notification APIs when the tab or PWA window is active.
 
-#### Windows (One-Click)
-- Double-click **`Sideleaf.bat`** in the Sideleaf folder.
-- Starts a minimal, secure local process bound strictly to loopback `http://127.0.0.1:[port]/` using built-in Windows PowerShell and opens your default browser.
-- *(Optional)* Double-click `scripts/create-desktop-shortcut.bat` to create a dedicated Desktop shortcut with the Sideleaf icon.
+---
 
-#### macOS & Linux
-- Open a terminal in the Sideleaf folder and run:
-  ```bash
-  ./Sideleaf.sh
-  ```
-- Automatically detects Python 3 or Node.js on your system, binds strictly to `127.0.0.1`, and opens your default browser.
+## Local Runtime & Desktop Launchers
 
-#### Progressive Web App (PWA)
+Sideleaf runs locally as a secure, loopback-only service:
+
+```text
+http://127.0.0.1:47321
+```
+
+### Windows Runtime (`Sideleaf.bat`)
+
+The Windows launcher provides zero-dependency single-instance process management:
+
+```cmd
+.\Sideleaf.bat start      # Start local server and open default browser
+.\Sideleaf.bat stop       # Stop running Sideleaf background process
+.\Sideleaf.bat restart    # Restart local runtime and reload build
+.\Sideleaf.bat status     # Display process PID, URL, version, and build info
+.\Sideleaf.bat doctor     # Run 8-point diagnostic integrity checks
+```
+
+- **Single-Instance Enforcement**: Verifies port ownership and process identity before binding, preventing duplicate server instances or port conflicts.
+- **Zero External Dependencies**: Powered entirely by native Windows PowerShell (`HttpListener`). No Node.js or Python required on end-user machines.
+
+### macOS & Linux (`Sideleaf.sh`)
+
+```bash
+./Sideleaf.sh
+```
+
+Automatically detects Python 3 or Node.js, binds strictly to `127.0.0.1`, and opens Sideleaf in your default browser.
+
+### Progressive Web App (PWA)
+
 - **Chrome / Edge**: Click the install icon in the address bar or choose **"Install Sideleaf"** in the top navigation or Settings.
 - **Safari (macOS Sonoma+)**: Click **File → Add to Dock**.
-- Once installed, Sideleaf opens in its own standalone, clean window without browser toolbars.
+- Runs in a clean, standalone desktop window without browser chrome.
 
-### Keyboard Shortcuts
+---
+
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
@@ -81,38 +119,50 @@ Sideleaf is designed so that non-technical users do not need Node.js, npm, a ter
 | `Ctrl + Shift + Space` / `Cmd + Shift + Space` | Quick Capture (alternate fallback) |
 | `Ctrl + K` / `Cmd + K` | **Search** / Command Palette |
 | `Ctrl + Enter` / `Cmd + Enter` | Convert item to Checklist / Toggle Task |
-| `Ctrl + Z` / `Cmd + Z` | **Undo** last action (delete, edit, archive) |
+| `Ctrl + Z` / `Cmd + Z` | **Undo** last action (edit, delete, archive) |
 | `Ctrl + Shift + Z` / `Cmd + Shift + Z` | **Redo** undone action |
 | `Ctrl + S` / `Cmd + S` | Download complete `.sideleaf` backup |
-| `Esc` | Close any active modal or cancel |
+| `Esc` | Close active modal or cancel selection |
 | `?` | View keyboard shortcut reference |
 | `Enter` | Save capture in quick input / overlay |
 | `Shift + Enter` | Insert newline in capture textarea |
 
 ---
 
-## Data & Privacy
+## Privacy & Local-First Storage
 
-### Local Storage Guarantee
-- **Local-Only Storage**: 100% of notes, workspaces, and settings remain in your browser's local IndexedDB database (`sideleaf_db`, with `sideleaf_ls_*` fallback in localStorage).
-- **No Third-Party Scripts**: No tracking pixels, Google Analytics, telemetry, remote CDN fonts, or external scripts.
-- **In-Memory Search**: Search indexing and multi-factor ranking execute directly in browser memory without sending queries over any network.
+- **IndexedDB Storage**: 100% of notes, workspaces, sections, and settings remain in your browser's local IndexedDB database (`sideleaf_db`), with an automatic `localStorage` fallback.
+- **Local Runtime Files**: Background reminder states are stored locally in `%LOCALAPPDATA%\Sideleaf` (`reminders.json`, `runtime.json`).
+- **No Cloud Backend**: Zero external server dependencies, no remote accounts, and no data leaves your computer.
+- **Zero Telemetry**: No tracking scripts, analytics, cookies, remote CDN fonts, or third-party requests.
 
-### Backups & Data Portability
-- **Portable `.sideleaf` Backups**: Export your entire work state into versioned JSON files (`sideleaf-v1` schema, with backwards compatibility for `.workpad` files).
-- **Markdown Export**: Export any workspace into standard GitHub Flavored Markdown (`.md`) format preserving task checkboxes (`- [ ]` / `- [x]`), quotes, and source links.
-- **Import Strategies**: When importing a backup file, choose between **Merge** (safely keeps existing data), **New Workspace** (isolates imported notes), or **Replace** (full restore).
+---
 
-### Uninstallation & Data Removal
-- **PWA**: Right-click the app icon and select **Uninstall Sideleaf**.
-- **Local Launcher**: Delete the Sideleaf folder.
-- **Wiping Local Data**: To erase browser-stored notes completely, click **"Clear All Data"** in Sideleaf Settings, or clear website storage for `localhost` in your browser settings.
+## Backup & Data Portability
+
+- **Portable `.sideleaf` Backups**: Export your complete state into versioned JSON backup files (`Ctrl+S`).
+- **Includes Reminders**: Active reminders and recurrence schedules are fully preserved in exports.
+- **Flexible Import Strategies**:
+  - **Merge**: Safely merges incoming items and workspaces with existing notes.
+  - **New Workspace**: Isolates imported content into a newly created workspace.
+  - **Replace**: Complete database restore from backup file.
+- **Legacy Compatibility**: Full backwards compatibility with `.workpad` backup files.
+- **Markdown Export**: Export individual workspaces to standard GitHub Flavored Markdown (`.md`) with task checkboxes (`- [ ]` / `- [x]`), quotes, and source links.
 
 ---
 
 ## Development
 
-Developers can clone the repository and use standard npm commands:
+Sideleaf is built with a modern, lightweight web stack:
+
+- **React 19**
+- **TypeScript 5.7**
+- **Vite 6**
+- **Tailwind CSS 3**
+- **Lucide Icons**
+- **Vitest 5**
+
+### Development Commands
 
 ```bash
 # 1. Install dependencies
@@ -127,20 +177,12 @@ npm test
 # 4. Build production static bundle (dist/)
 npm run build
 
-# 5. Run zero-dependency local production launcher
+# 5. Run local production launcher
 npm run launch
 
 # 6. Package standalone portable distribution bundle
 npm run package
 ```
-
-### Distribution Modes
-
-| Mode | Target | Description |
-| --- | --- | --- |
-| **Static Web Hosting** | Public Web / Internal Teams | Run `npm run build` to output `dist/`. Deploy to GitHub Pages, Cloudflare Pages, Netlify, Vercel, or any static HTTP host. No backend required. |
-| **PWA (Progressive Web App)** | Desktop / Mobile Users | Standalone application window, offline service worker caching, application icons (`192x192`, `512x512`, SVG, ICO). |
-| **Local Launcher Package** | Local-First Desktops | Portable folder with `Sideleaf.bat` (Windows PowerShell `HttpListener`), `Sideleaf.sh` (macOS/Linux), and `scripts/launcher.mjs`. Binds strictly to `127.0.0.1`. |
 
 ---
 

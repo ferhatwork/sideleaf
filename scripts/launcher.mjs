@@ -60,22 +60,28 @@ const runtimeJsonPath = path.join(runtimeDir, 'runtime.json');
 const remindersJsonPath = path.join(runtimeDir, 'reminders.json');
 
 let activeReminders = [];
+let runtimeLocale = 'tr';
 
 function loadRuntimeReminders() {
   try {
     if (fs.existsSync(remindersJsonPath)) {
       const raw = fs.readFileSync(remindersJsonPath, 'utf8');
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.reminders)) {
-        activeReminders = parsed.reminders;
-        return;
+      if (parsed) {
+        if (parsed.locale) {
+          runtimeLocale = parsed.locale;
+        }
+        if (Array.isArray(parsed.reminders)) {
+          activeReminders = parsed.reminders;
+          return;
+        }
       }
     }
   } catch {}
   activeReminders = [];
 }
 
-function saveRuntimeReminders(remList) {
+function saveRuntimeReminders(remList, locale = null) {
   try {
     if (!fs.existsSync(runtimeDir)) {
       fs.mkdirSync(runtimeDir, { recursive: true });
@@ -83,9 +89,60 @@ function saveRuntimeReminders(remList) {
     const payload = {
       version: 1,
       updatedAt: new Date().toISOString(),
+      locale: locale || runtimeLocale || 'tr',
       reminders: remList,
     };
     fs.writeFileSync(remindersJsonPath, JSON.stringify(payload, null, 2), 'utf8');
+  } catch {}
+}
+
+function sendWindowsNotification(rem) {
+  if (process.platform !== 'win32') return;
+  try {
+    const isEn = runtimeLocale === 'en';
+    const title = isEn ? 'Sideleaf \u2022 Reminder' : 'Sideleaf \u2022 Hat\u0131rlat\u0131c\u0131';
+    const message = rem.itemContent || (isEn ? 'Reminder' : 'Hat\u0131rlat\u0131c\u0131');
+    const itemId = rem.itemId || '';
+    const remId = rem.id || '';
+    const openUrl = itemId
+      ? `${ORIGIN}/__sideleaf/reminder-action?action=open&id=${remId}&item=${itemId}`
+      : `${ORIGIN}/__sideleaf/reminder-action?action=open&id=${remId}`;
+    const snoozeUrl = `${ORIGIN}/__sideleaf/reminder-action?action=snooze&id=${remId}&item=${itemId}`;
+    const dismissUrl = `${ORIGIN}/__sideleaf/reminder-action?action=dismiss&id=${remId}&item=${itemId}`;
+    const openLabel = isEn ? 'Open in Sideleaf' : "Sideleaf'te A\u00e7";
+    const snoozeLabel = isEn ? 'Snooze 10 min' : '10 dk Ertele';
+    const dismissLabel = isEn ? 'Dismiss' : 'Kapat';
+
+    const safeTitle = title.replace(/[<>&'"]/g, '');
+    const safeMsg = message.replace(/[<>&'"]/g, '');
+
+    const ps = `
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+$template = @"
+<toast scenario="reminder" activationType="protocol" launch="${openUrl}">
+  <visual>
+    <binding template="ToastGeneric">
+      <text>${safeTitle}</text>
+      <text>${safeMsg}</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="${openLabel}" arguments="${openUrl}" activationType="protocol"/>
+    <action content="${snoozeLabel}" arguments="${snoozeUrl}" activationType="protocol"/>
+    <action content="${dismissLabel}" arguments="${dismissUrl}" activationType="protocol"/>
+  </actions>
+  <audio src="ms-winsoundevent:Notification.Reminder" loop="false" />
+</toast>
+"@
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml($template)
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+$appId = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe"
+$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
+$notifier.Show($toast)
+`;
+    exec(`powershell.exe -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`, () => {});
   } catch {}
 }
 
@@ -134,24 +191,44 @@ function checkDueReminders() {
 
   for (const rem of activeReminders) {
     if (!rem.enabled) continue;
-    if (rem.scheduledAt > nowMs) continue;
-    if (rem.lastTriggeredAt && rem.lastTriggeredAt >= rem.scheduledAt) continue;
+
+    let state = rem.state || 'pending';
+
+    // Recurring rollover check
+    if (rem.type !== 'once' && state === 'fired') {
+      const nextCycle = calculateNextOccurrence(rem, rem.lastTriggeredAt || nowMs);
+      if (nextCycle && nowMs >= nextCycle) {
+        rem.scheduledAt = nextCycle;
+        state = 'pending';
+        rem.state = 'pending';
+        rem.snoozedUntil = null;
+        changed = true;
+      }
+    }
+
+    if (state === 'snoozed') {
+      if (rem.snoozedUntil && nowMs >= rem.snoozedUntil) {
+        rem.snoozedUntil = null;
+        // will fire below
+      } else {
+        continue;
+      }
+    } else if (state === 'fired') {
+      continue;
+    } else if (state === 'dismissed' || state === 'acknowledged') {
+      continue;
+    } else {
+      if (rem.scheduledAt > nowMs) continue;
+      if (rem.lastTriggeredAt && rem.lastTriggeredAt >= rem.scheduledAt) continue;
+    }
 
     // Fired
     rem.lastTriggeredAt = nowMs;
+    rem.state = 'fired';
     changed = true;
     console.log(`[reminder] Due: "${rem.itemContent || 'Note'}" (type: ${rem.type})`);
 
-    if (rem.type === 'once') {
-      rem.enabled = false;
-    } else if (rem.type === 'daily' || rem.type === 'weekly') {
-      const nextMs = calculateNextOccurrence(rem, nowMs);
-      if (nextMs) {
-        rem.scheduledAt = nextMs;
-      } else {
-        rem.enabled = false;
-      }
-    }
+    sendWindowsNotification(rem);
   }
 
   if (changed) {
@@ -257,11 +334,39 @@ const server = http.createServer((req, res) => {
           try {
             const parsed = JSON.parse(body);
             if (parsed && Array.isArray(parsed.reminders)) {
-              if (!fs.existsSync(runtimeDir)) {
-                fs.mkdirSync(runtimeDir, { recursive: true });
+              if (parsed.locale) {
+                runtimeLocale = parsed.locale;
               }
-              fs.writeFileSync(remindersJsonPath, body, 'utf8');
-              activeReminders = parsed.reminders;
+
+              const existingMap = new Map();
+              for (const old of activeReminders) {
+                if (old.id) existingMap.set(old.id, old);
+              }
+
+              const newReminders = [];
+              for (const newRem of parsed.reminders) {
+                if (newRem.id && existingMap.has(newRem.id)) {
+                  const oldRem = existingMap.get(newRem.id);
+                  if (oldRem.scheduledAt === newRem.scheduledAt) {
+                    if (oldRem.snoozedUntil && !newRem.snoozedUntil) {
+                      newRem.snoozedUntil = oldRem.snoozedUntil;
+                    }
+                    if (oldRem.state && !newRem.state) {
+                      newRem.state = oldRem.state;
+                    }
+                    if (oldRem.lastTriggeredAt && !newRem.lastTriggeredAt) {
+                      newRem.lastTriggeredAt = oldRem.lastTriggeredAt;
+                    }
+                  }
+                }
+                if (!newRem.state) {
+                  newRem.state = 'pending';
+                }
+                newReminders.push(newRem);
+              }
+
+              activeReminders = newReminders;
+              saveRuntimeReminders(activeReminders, runtimeLocale);
             }
           } catch {}
           res.writeHead(200, {
@@ -273,6 +378,211 @@ const server = http.createServer((req, res) => {
         });
         return;
       }
+    }
+
+    // Internal local API: /__sideleaf/reminder-action
+    if (parsedPath === '/__sideleaf/reminder-action') {
+      const reqHost = req.headers.host;
+      const origin = req.headers.origin;
+      const referer = req.headers.referer;
+      const secSite = req.headers['sec-fetch-site'];
+
+      const validHost = reqHost === `127.0.0.1:${PORT}` || reqHost === `localhost:${PORT}`;
+      const validOrigin = !origin || origin === ORIGIN || origin === `http://localhost:${PORT}`;
+      const validReferer = !referer || referer.startsWith(ORIGIN + '/') || referer.startsWith(`http://localhost:${PORT}/`);
+      const validSecSite = !secSite || secSite === 'same-origin' || secSite === 'none';
+
+      if (!validHost || !validOrigin || !validReferer || !validSecSite) {
+        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('403 Forbidden');
+        return;
+      }
+
+      const urlObj = new URL(rawUrl, ORIGIN);
+      const action = urlObj.searchParams.get('action');
+      const remId = urlObj.searchParams.get('id');
+      const itemId = urlObj.searchParams.get('item');
+
+      if (!activeReminders || activeReminders.length === 0) {
+        loadRuntimeReminders();
+      }
+
+      const targetRem = remId ? activeReminders.find((r) => r.id === remId) : null;
+      const nowMs = Date.now();
+      const isEn = runtimeLocale === 'en';
+      const isJson = (req.headers.accept && req.headers.accept.includes('application/json')) || req.headers['x-sideleaf-client'];
+
+      if (action === 'snooze') {
+        if (targetRem) {
+          targetRem.snoozedUntil = nowMs + 10 * 60 * 1000;
+          targetRem.state = 'snoozed';
+          targetRem.enabled = true;
+          saveRuntimeReminders(activeReminders);
+        }
+
+        if (isJson) {
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'X-Sideleaf-Server': '1',
+          });
+          res.end(JSON.stringify({ ok: true, action: 'snooze', id: remId, snoozedUntil: targetRem ? targetRem.snoozedUntil : null }));
+          return;
+        }
+
+        const cardTitle = 'Sideleaf';
+        const cardMsg = isEn ? 'Reminder snoozed for 10 minutes.' : 'Hat\u0131rlat\u0131c\u0131 10 dakika ertelendi.';
+        const closeBtn = isEn ? 'Close' : 'Kapat';
+        const html = `<!DOCTYPE html>
+<html lang="${isEn ? 'en' : 'tr'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sideleaf</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fafafa; color: #18181b; }
+  .card { text-align: center; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e4e4e7; max-width: 360px; width: 90%; }
+  h2 { margin: 0 0 8px 0; font-size: 17px; font-weight: 600; color: #09090b; }
+  p { margin: 0 0 16px 0; font-size: 14px; color: #71717a; }
+  .btn { display: inline-block; padding: 6px 16px; border-radius: 6px; background: #f4f4f5; color: #18181b; font-size: 13px; font-weight: 500; border: 1px solid #e4e4e7; cursor: pointer; }
+  .btn:hover { background: #e4e4e7; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #121214; color: #f4f4f5; }
+    .card { background: #18181b; border-color: #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    h2 { color: #fafafa; }
+    p { color: #a1a1aa; }
+    .btn { background: #27272a; color: #f4f4f5; border-color: #3f3f46; }
+    .btn:hover { background: #3f3f46; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>${cardTitle}</h2>
+  <p>${cardMsg}</p>
+  <button class="btn" onclick="window.close()">${closeBtn}</button>
+</div>
+<script>
+  setTimeout(function() { try { window.close(); } catch(e){} }, 2000);
+</script>
+</body>
+</html>`;
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-Sideleaf-Server': '1',
+        });
+        res.end(html);
+        return;
+      }
+
+      if (action === 'dismiss') {
+        if (targetRem) {
+          targetRem.snoozedUntil = null;
+          targetRem.state = 'dismissed';
+          if (targetRem.type === 'once') {
+            targetRem.enabled = false;
+          } else {
+            const nextMs = calculateNextOccurrence(targetRem, nowMs);
+            if (nextMs) {
+              targetRem.scheduledAt = nextMs;
+              targetRem.state = 'pending';
+              targetRem.lastTriggeredAt = null;
+            } else {
+              targetRem.enabled = false;
+            }
+          }
+          saveRuntimeReminders(activeReminders);
+        }
+
+        if (isJson) {
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'X-Sideleaf-Server': '1',
+          });
+          res.end(JSON.stringify({ ok: true, action: 'dismiss', id: remId, state: targetRem ? targetRem.state : null }));
+          return;
+        }
+
+        const cardTitle = 'Sideleaf';
+        const cardMsg = isEn ? 'Reminder dismissed.' : 'Hat\u0131rlat\u0131c\u0131 kapat\u0131ld\u0131.';
+        const closeBtn = isEn ? 'Close' : 'Kapat';
+        const html = `<!DOCTYPE html>
+<html lang="${isEn ? 'en' : 'tr'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sideleaf</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fafafa; color: #18181b; }
+  .card { text-align: center; padding: 24px 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e4e4e7; max-width: 360px; width: 90%; }
+  h2 { margin: 0 0 8px 0; font-size: 17px; font-weight: 600; color: #09090b; }
+  p { margin: 0 0 16px 0; font-size: 14px; color: #71717a; }
+  .btn { display: inline-block; padding: 6px 16px; border-radius: 6px; background: #f4f4f5; color: #18181b; font-size: 13px; font-weight: 500; border: 1px solid #e4e4e7; cursor: pointer; }
+  .btn:hover { background: #e4e4e7; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #121214; color: #f4f4f5; }
+    .card { background: #18181b; border-color: #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    h2 { color: #fafafa; }
+    p { color: #a1a1aa; }
+    .btn { background: #27272a; color: #f4f4f5; border-color: #3f3f46; }
+    .btn:hover { background: #3f3f46; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>${cardTitle}</h2>
+  <p>${cardMsg}</p>
+  <button class="btn" onclick="window.close()">${closeBtn}</button>
+</div>
+<script>
+  setTimeout(function() { try { window.close(); } catch(e){} }, 2000);
+</script>
+</body>
+</html>`;
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-Sideleaf-Server': '1',
+        });
+        res.end(html);
+        return;
+      }
+
+      if (action === 'open') {
+        if (targetRem) {
+          targetRem.state = 'acknowledged';
+          targetRem.snoozedUntil = null;
+          if (targetRem.type === 'once') {
+            targetRem.enabled = false;
+          } else {
+            const nextMs = calculateNextOccurrence(targetRem, nowMs);
+            if (nextMs) {
+              targetRem.scheduledAt = nextMs;
+              targetRem.state = 'pending';
+              targetRem.lastTriggeredAt = null;
+            } else {
+              targetRem.enabled = false;
+            }
+          }
+          saveRuntimeReminders(activeReminders);
+        }
+
+        const targetRedirect = itemId ? `/?item=${encodeURIComponent(itemId)}` : '/';
+        res.writeHead(302, {
+          Location: targetRedirect,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-Sideleaf-Server': '1',
+        });
+        res.end();
+        return;
+      }
+
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('400 Bad Request');
+      return;
     }
 
     // Path traversal check
