@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { ItemType, BulkParseResult } from '../types';
+import { ItemType, BulkParseResult, ItemFormatting } from '../types';
 import { ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
 import { parseBulkInput } from '../utils/linkParser';
 import { useSideleaf } from '../hooks/useSideleaf';
+import { FormattingToolbar } from './FormattingToolbar';
 
 export interface QuickInputHandle {
   focus: () => void;
@@ -16,6 +17,7 @@ interface QuickInputProps {
     workspaceId?: string | null;
     sectionId?: string | null;
     sourceUrl?: string;
+    formatting?: ItemFormatting;
   }) => Promise<unknown>;
   defaultWorkspaceId?: string | null;
   defaultSectionId?: string | null;
@@ -37,6 +39,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
 
   const [content, setContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
+  const [formatting, setFormatting] = useState<ItemFormatting>({});
   const [isFocused, setIsFocused] = useState(autoFocus);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -70,9 +73,11 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
         type: overrideType || type,
         workspaceId: defaultWorkspaceId,
         sectionId: defaultSectionId,
+        formatting: Object.keys(formatting).length > 0 ? formatting : undefined,
       });
       setContent('');
       setType('text');
+      setFormatting({});
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
@@ -184,7 +189,11 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
         className="w-full bg-transparent resize-none text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
       />
 
-      <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between">
+      <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/80">
+        <FormattingToolbar formatting={formatting} onChange={setFormatting} />
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {type !== 'text' && (
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 capitalize">

@@ -10,6 +10,18 @@ export interface ItemSource {
   capturedAt: number;
 }
 
+export type ItemFontFamily = 'sans' | 'serif' | 'mono';
+export type ItemListStyle = 'none' | 'bullet' | 'numbered';
+
+/** Presentation options for a note's complete text content. */
+export interface ItemFormatting {
+  bold?: boolean;
+  italic?: boolean;
+  color?: string;
+  fontFamily?: ItemFontFamily;
+  listStyle?: ItemListStyle;
+}
+
 export interface Section {
   id: string;
   workspaceId: string;
@@ -71,6 +83,7 @@ export interface Item {
   sectionId?: string | null; // null or undefined means unsectioned
   type: ItemType;
   content: string;
+  formatting?: ItemFormatting;
   checked?: boolean; // For checklist items
   status: ItemStatus;
   order: number;
@@ -94,6 +107,7 @@ export interface WorkSession {
 export interface CreateItemParams {
   content: string;
   type?: ItemType;
+  formatting?: ItemFormatting;
   workspaceId?: string | null;
   sectionId?: string | null;
   checked?: boolean;
