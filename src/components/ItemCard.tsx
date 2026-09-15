@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Item, ItemType, Workspace, Section, Locale } from '../types';
+import { Item, ItemType, Workspace, Section, Locale, ItemFormatting } from '../types';
 import { formatTimeAgo, extractDomain } from '../utils/format';
 import { isValidUrl } from '../utils/linkParser';
 import { useSideleaf } from '../hooks/useSideleaf';
+import { FormattingToolbar } from './FormattingToolbar';
 import {
   formatNextReminderBadge,
   formatReminderDisplay,
@@ -46,6 +47,28 @@ interface ItemCardProps {
   showWorkspaceBadge?: boolean;
 }
 
+const normalizeFormatting = (formatting?: ItemFormatting): ItemFormatting | undefined => {
+  if (!formatting) return undefined;
+
+  const normalized: ItemFormatting = {};
+  if (formatting.bold) normalized.bold = true;
+  if (formatting.italic) normalized.italic = true;
+  if (formatting.color && /^#[0-9a-f]{3,8}$/i.test(formatting.color)) {
+    normalized.color = formatting.color;
+  }
+  if (formatting.fontFamily && ['sans', 'serif', 'mono'].includes(formatting.fontFamily)) {
+    normalized.fontFamily = formatting.fontFamily;
+  }
+  if (formatting.listStyle && ['none', 'bullet', 'numbered'].includes(formatting.listStyle)) {
+    normalized.listStyle = formatting.listStyle;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+};
+
+const formattingEquals = (left?: ItemFormatting, right?: ItemFormatting): boolean =>
+  JSON.stringify(normalizeFormatting(left)) === JSON.stringify(normalizeFormatting(right));
+
 export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   workspaces,
@@ -77,17 +100,20 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(item.content);
+  const [formatting, setFormatting] = useState<ItemFormatting>(item.formatting || {});
   const [showMenu, setShowMenu] = useState(false);
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const [showSectionSubmenu, setShowSectionSubmenu] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setContent(item.content);
-  }, [item.content]);
+    setFormatting(item.formatting || {});
+  }, [item.content, item.formatting]);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -123,12 +149,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const domain = item.source?.domain || (rawUrl ? extractDomain(rawUrl) : null);
   const isLink = item.type === 'link' || Boolean(rawUrl && isSafeUrl(rawUrl));
 
-  const saveItemContent = async (newContent: string) => {
+  const saveItemContent = async (newContent: string, newFormatting: ItemFormatting = formatting) => {
     const trimmed = newContent.trim();
-    if (trimmed !== item.content) {
-      const updates: Partial<Item> = { content: trimmed };
+    const formattingChanged = !formattingEquals(item.formatting, newFormatting);
+    if (trimmed !== item.content || formattingChanged) {
+      const updates: Partial<Item> = {};
+      if (trimmed !== item.content) updates.content = trimmed;
+      if (formattingChanged) updates.formatting = normalizeFormatting(newFormatting);
       // If editing label of a link item whose URL was in content, migrate URL to source so it isn't lost
-      if ((item.type === 'link' || isLink) && !item.source?.url && rawUrl) {
+      if (trimmed !== item.content && (item.type === 'link' || isLink) && !item.source?.url && rawUrl) {
         updates.source = {
           ...item.source,
           url: rawUrl,
@@ -258,6 +287,41 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       }
       return part;
     });
+  };
+
+  const textStyle: React.CSSProperties = {
+    color: formatting.color && /^#[0-9a-f]{3,8}$/i.test(formatting.color) ? formatting.color : undefined,
+    fontFamily:
+      formatting.fontFamily === 'serif'
+        ? 'Georgia, Cambria, "Times New Roman", serif'
+        : formatting.fontFamily === 'mono'
+        ? '"JetBrains Mono", "Fira Code", monospace'
+        : undefined,
+    fontWeight: formatting.bold ? 700 : undefined,
+    fontStyle: formatting.italic ? 'italic' : undefined,
+  };
+
+  const renderContent = (text: string) => {
+    const lines = text.split(/\r?\n/);
+    // Existing multiline notes become readable lists automatically. Users can switch
+    // to numbered or plain line-break mode from the formatting toolbar.
+    const listStyle =
+      item.formatting?.listStyle || (item.type === 'text' && lines.length > 1 ? 'bullet' : 'none');
+
+    if (listStyle === 'bullet' || listStyle === 'numbered') {
+      const ListTag = listStyle === 'bullet' ? 'ul' : 'ol';
+      return (
+        <ListTag className={`${listStyle === 'bullet' ? 'list-disc' : 'list-decimal'} pl-5 space-y-0.5`}>
+          {lines.map((line, index) => (
+            <li key={`${index}-${line}`} className="whitespace-pre-wrap pl-1">
+              {line ? renderFormattedText(line) : '\u00a0'}
+            </li>
+          ))}
+        </ListTag>
+      );
+    }
+
+    return <div className="whitespace-pre-wrap">{renderFormattedText(text)}</div>;
   };
 
   const renderActionMenu = () => (
@@ -587,19 +651,28 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         {/* Content area: inline edit or formatted view */}
         <div className="flex-1 min-w-0">
           {isEditing ? (
-            <textarea
-              ref={textareaRef}
-              value={content}
-              onChange={(e) => {
-                setContent(e.target.value);
-                e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
-              }}
-              onBlur={handleSave}
-              onKeyDown={handleKeyDown}
-              className="w-full bg-transparent resize-none text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 focus:outline-none"
-              rows={1}
-            />
+            <div ref={editorRef} className="space-y-2">
+              <textarea
+                ref={textareaRef}
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                onBlur={(e) => {
+                  const nextTarget = e.relatedTarget as Node | null;
+                  if (!nextTarget || !editorRef.current?.contains(nextTarget)) {
+                    void handleSave();
+                  }
+                }}
+                onKeyDown={handleKeyDown}
+                style={textStyle}
+                className="w-full bg-transparent resize-none text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                rows={1}
+              />
+              <FormattingToolbar formatting={formatting} onChange={setFormatting} />
+            </div>
           ) : isLink && item.type === 'link' ? (
             /* Dedicated Link Item View (Spec Section 3 & 4) */
             <div className="space-y-0.5">
@@ -616,6 +689,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                     }
                   }}
                   className="font-medium text-sm text-neutral-900 dark:text-neutral-100 hover:underline cursor-text select-text rounded focus-ring truncate max-w-full"
+                  style={textStyle}
                 >
                   {item.content || item.source?.title || rawUrl}
                 </div>
@@ -685,13 +759,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   ? 'border-l-2 border-neutral-300 dark:border-neutral-700 pl-3 italic font-serif text-neutral-700 dark:text-neutral-300'
                   : 'text-neutral-900 dark:text-neutral-100'
               }`}
+              style={textStyle}
             >
               {item.type === 'decision' && (
                 <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200/50 dark:border-purple-800/50 mr-2 align-middle">
                   {t.item.decisionBadge}
                 </span>
               )}
-              {renderFormattedText(item.content)}
+              {renderContent(item.content)}
             </div>
           )}
 

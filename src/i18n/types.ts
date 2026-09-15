@@ -147,6 +147,14 @@ export interface ItemTranslations {
   sourceLabel: string;
   openSource: string;
   reminderAction: string;
+  formattingToolbar: string;
+  bold: string;
+  italic: string;
+  textColor: string;
+  fontFamily: string;
+  bulletList: string;
+  numberedList: string;
+  resetFormatting: string;
 }
 
 export interface ReminderTranslations {
