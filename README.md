@@ -3,7 +3,7 @@
 > A tiny, local-first work surface for computer work.
 
 <p align="center">
-  <img src="assets/social-preview.png" alt="Sideleaf — A tiny, local-first work surface for computer work." width="720" />
+  <img src="docs/screenshots/workspace-groups.png" alt="Sideleaf workspace groups demo" width="720" />
 </p>
 
 <p align="center">
@@ -32,8 +32,6 @@ The current release adds a two-level workspace organizer. Create a workspace gro
 - The Windows launcher and desktop shortcut flow now use a single current build without leaving an extra command window open.
 - The supplied Sideleaf green identity is now used by the app shell, favicon, PWA metadata, and documentation.
 - New installations start in English with the light theme, while the appearance and language controls remain available.
-
-![Workspace groups demo](docs/screenshots/workspace-groups.png)
 
 The demo image uses fictional client workspaces and is safe to reuse in project documentation.
 
