@@ -3,16 +3,16 @@
  * SPEC Sections 11, 12, 23, 32, 33
  */
 
-const CACHE_NAME = 'sideleaf-v1.0.0';
+const CACHE_NAME = 'sideleaf-v1.1.0';
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/build-info.json',
-  '/icon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/sideleaf-appicon.png',
+  '/sideleaf-mainlogo.png',
+  '/sideleaf-mainsymbol.png',
 ];
 
 // Pre-cache core app shell assets on install and activate immediately
