@@ -84,6 +84,8 @@ export interface Item {
   type: ItemType;
   content: string;
   formatting?: ItemFormatting;
+  /** Sanitized rich-text HTML for selection-level formatting. */
+  richContent?: string;
   checked?: boolean; // For checklist items
   status: ItemStatus;
   order: number;
@@ -108,6 +110,7 @@ export interface CreateItemParams {
   content: string;
   type?: ItemType;
   formatting?: ItemFormatting;
+  richContent?: string;
   workspaceId?: string | null;
   sectionId?: string | null;
   checked?: boolean;

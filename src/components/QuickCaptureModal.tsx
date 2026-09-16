@@ -4,6 +4,7 @@ import { X, ArrowRight, ChevronDown, Link as LinkIcon, Check } from 'lucide-reac
 import { extractUrls } from '../utils/format';
 import { parseBulkInput } from '../utils/linkParser';
 import { useSideleaf } from '../hooks/useSideleaf';
+import { RichTextEditor, RichTextEditorHandle } from './RichTextEditor';
 
 interface QuickCaptureModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface QuickCaptureModalProps {
     sectionId?: string | null;
     sourceUrl?: string;
     sourceTitle?: string;
+    richContent?: string;
   }) => Promise<unknown>;
   workspaces: Workspace[];
   activeWorkspaceId?: string | null;
@@ -29,6 +31,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
 }) => {
   const { t, sections, addBulkItems } = useSideleaf();
   const [content, setContent] = useState('');
+  const [richContent, setRichContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
   const [workspaceId, setWorkspaceId] = useState<string | null>(activeWorkspaceId);
   const [sectionId, setSectionId] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [detectedMultiLink, setDetectedMultiLink] = useState<BulkParseResult | null>(null);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const sectionMenuRef = useRef<HTMLDivElement>(null);
@@ -64,6 +67,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
     if (isOpen) {
       previousFocusRef.current = document.activeElement as HTMLElement;
       setContent('');
+      setRichContent('');
       setType('text');
       setWorkspaceId(activeWorkspaceId);
       setSectionId(null);
@@ -71,7 +75,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
       setIsSectionMenuOpen(false);
       setDetectedMultiLink(null);
       setTimeout(() => {
-        textareaRef.current?.focus();
+        editorRef.current?.focus();
       }, 30);
     } else {
       previousFocusRef.current?.focus();
@@ -129,8 +133,14 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSave = async (overrideType?: ItemType) => {
-    const trimmed = content.trim();
+  const handleSave = async (
+    overrideType?: ItemType,
+    contentOverride?: string,
+    richContentOverride?: string
+  ) => {
+    const nextContent = contentOverride ?? content;
+    const nextRichContent = richContentOverride ?? richContent;
+    const trimmed = nextContent.trim();
     if (!trimmed || isSubmitting) {
       onClose();
       return;
@@ -142,6 +152,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
         type: overrideType || type,
         workspaceId,
         sectionId: sectionId || undefined,
+        richContent: nextRichContent || undefined,
       });
       onClose();
     } finally {
@@ -172,6 +183,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
   const handlePasteAsText = () => {
     if (!detectedMultiLink) return;
     setContent(detectedMultiLink.originalText);
+    editorRef.current?.setContent(detectedMultiLink.originalText);
     setDetectedMultiLink(null);
   };
 
@@ -180,7 +192,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
     if (e.key === 'Tab') {
       if (!modalRef.current) return;
       const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        'button, [href], input, select, textarea, [contenteditable="true"], [tabindex]:not([tabindex="-1"])'
       );
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -196,14 +208,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
       return;
     }
 
-    // Ctrl+Enter converts/saves immediately as a checklist task!
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      handleSave('checklist');
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       if (isWorkspaceMenuOpen || isSectionMenuOpen) {
         e.preventDefault();
         e.stopPropagation();
@@ -216,7 +221,7 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const pasted = e.clipboardData.getData('text');
     if (!pasted) return;
 
@@ -312,15 +317,25 @@ export const QuickCaptureModal: React.FC<QuickCaptureModalProps> = ({
             </div>
           ) : null}
 
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
+          <RichTextEditor
+            ref={editorRef}
+            initialContent=""
+            autoFocus
+            showActions={false}
+            saveOnBlur={false}
+            ariaLabel={t.capture.focusedPlaceholder}
+            onChange={(nextContent, nextRichContent) => {
+              setContent(nextContent);
+              setRichContent(nextRichContent);
+            }}
             onPaste={handlePaste}
-            placeholder={t.capture.focusedPlaceholder}
-            rows={3}
-            aria-label={t.capture.focusedPlaceholder}
-            className="w-full bg-transparent resize-none text-base text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
+            onSave={(nextContent, nextRichContent) => {
+              void handleSave(undefined, nextContent, nextRichContent);
+            }}
+            onCancel={onClose}
+            onSubmitTask={(nextContent, nextRichContent) => {
+              void handleSave('checklist', nextContent, nextRichContent);
+            }}
           />
 
           <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2">

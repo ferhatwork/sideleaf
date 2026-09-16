@@ -62,6 +62,7 @@ export function createItemRecord(
     type: determinedType,
     content,
     formatting: params.formatting,
+    richContent: params.richContent,
     checked: params.checked ?? (determinedType === 'checklist' ? false : undefined),
     status: 'active',
     order: now,
