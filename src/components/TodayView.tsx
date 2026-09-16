@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
+import { SortableItemList } from './SortableItemList';
 import { QuickInput, QuickInputHandle } from './QuickInput';
 import { formatTimeAgo, formatLocalizedDate } from '../utils/format';
 import { extractRawUrls } from '../utils/linkParser';
@@ -43,6 +44,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
     bulkMoveItems,
     bulkArchiveItems,
     bulkDeleteItems,
+    reorderItems,
     triggerToast,
   } = useSideleaf();
   const quickInputRef = useRef<QuickInputHandle>(null);
@@ -68,9 +70,9 @@ export const TodayView: React.FC<TodayViewProps> = ({
   const streamItems = useMemo(() => {
     const todayTouched = activeItems.filter((i) => i.updatedAt >= startOfToday);
     if (todayTouched.length > 0) {
-      return todayTouched.sort((a, b) => b.updatedAt - a.updatedAt);
+      return todayTouched.sort((a, b) => b.order - a.order || b.updatedAt - a.updatedAt);
     }
-    return [...activeItems].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 15);
+    return [...activeItems].sort((a, b) => b.order - a.order || b.updatedAt - a.updatedAt).slice(0, 15);
   }, [activeItems, startOfToday]);
 
   // "Continue" workspace summary
@@ -240,10 +242,12 @@ export const TodayView: React.FC<TodayViewProps> = ({
         </div>
       ) : (
         <>
-          <div className="space-y-1">
-            {streamItems.map((item) => (
+          <SortableItemList
+            items={streamItems}
+            onReorder={reorderItems}
+            className="space-y-1"
+            renderItem={(item, dragProps) => (
               <ItemCard
-                key={item.id}
                 item={item}
                 workspaces={workspaces}
                 locale={locale}
@@ -255,9 +259,10 @@ export const TodayView: React.FC<TodayViewProps> = ({
                 onMove={onMove}
                 onArchive={onArchive}
                 onDelete={onDelete}
+                {...dragProps}
               />
-            ))}
-          </div>
+            )}
+          />
 
           {/* Hairline Divider & Continue Section */}
           {resumeWorkspaces.length > 0 && (

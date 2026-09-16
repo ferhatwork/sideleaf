@@ -132,6 +132,7 @@ export const tr: TranslationSchema = {
     convertToDecision: 'Karara dönüştür',
     copyText: 'Metni kopyala',
     copyLink: 'Bağlantıyı kopyala',
+    dragToReorder: 'Sıralamak için sürükle',
     moveToWorkspace: 'Çalışma alanına taşı',
     scratchOption: 'Karalama',
     archiveAction: 'Arşivle',

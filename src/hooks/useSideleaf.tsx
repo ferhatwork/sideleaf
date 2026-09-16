@@ -75,6 +75,7 @@ interface SideleafContextType extends ApplicationCommands {
   addItem: (params: CreateItemParams) => Promise<Item>;
   createItem: (params: CreateItemParams) => Promise<Item>;
   updateItem: (id: string, updates: Partial<Item>) => Promise<void>;
+  reorderItems: (itemIds: string[]) => Promise<void>;
   toggleItemCheck: (id: string) => Promise<void>;
   convertToTask: (id: string) => Promise<void>;
   convertItemType: (id: string, targetType: ItemType) => Promise<void>;
@@ -418,6 +419,27 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  // Persist the visual order without changing note content or updatedAt.
+  const reorderItems = useCallback(async (itemIds: string[]) => {
+    const idOrderMap = new Map(itemIds.map((id, index) => [id, index]));
+    const baseOrder = Date.now() + itemIds.length;
+    let updatedList: Item[] = [];
+
+    setItems((prev) => {
+      updatedList = prev.map((item) => {
+        const index = idOrderMap.get(item.id);
+        if (index === undefined) return item;
+        return { ...item, order: baseOrder - index };
+      });
+      return updatedList;
+    });
+
+    const toSave = updatedList.filter((item) => idOrderMap.has(item.id));
+    if (toSave.length > 0) {
+      await db.saveItems(toSave);
+    }
+  }, []);
 
   // Toggle checklist (Uses functional update)
   const toggleItemCheck = useCallback(
@@ -1480,6 +1502,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       addItem,
       createItem,
       updateItem,
+      reorderItems,
       toggleItemCheck,
       convertToTask,
       convertItemType,
@@ -1547,6 +1570,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       addItem,
       createItem,
       updateItem,
+      reorderItems,
       toggleItemCheck,
       convertToTask,
       convertItemType,
