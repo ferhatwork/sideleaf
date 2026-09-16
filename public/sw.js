@@ -10,7 +10,9 @@ const STATIC_ASSETS = [
   '/index.html',
   '/manifest.webmanifest',
   '/build-info.json',
-  '/sideleaf-appicon.png',
+  '/sideleaf-appicon-v2-192.png',
+  '/sideleaf-appicon-v2-512.png',
+  '/sideleaf-appicon-v2.ico',
   '/sideleaf-mainlogo.png',
   '/sideleaf-mainsymbol.png',
 ];

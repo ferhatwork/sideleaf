@@ -95,6 +95,13 @@ describe('Brand Identity & Verification Suite (Sideleaf)', () => {
       expect(manifest.short_name).toBe('Sideleaf');
       expect(manifest.description.toLowerCase()).not.toContain('workpad');
       expect(manifest.description).toContain('Sideleaf');
+      expect(manifest.icons).toEqual(expect.arrayContaining([
+        expect.objectContaining({ src: '/sideleaf-appicon-v2-192.png', sizes: '192x192' }),
+        expect.objectContaining({ src: '/sideleaf-appicon-v2-512.png', sizes: '512x512' }),
+      ]));
+      expect(fs.existsSync(path.resolve(process.cwd(), 'public/sideleaf-appicon-v2-192.png'))).toBe(true);
+      expect(fs.existsSync(path.resolve(process.cwd(), 'public/sideleaf-appicon-v2-512.png'))).toBe(true);
+      expect(fs.existsSync(path.resolve(process.cwd(), 'public/sideleaf-appicon-v2.ico'))).toBe(true);
     });
   });
 
@@ -116,6 +123,8 @@ describe('Brand Identity & Verification Suite (Sideleaf)', () => {
       expect(html).toContain('<meta name="apple-mobile-web-app-title" content="Sideleaf" />');
       expect(html).toContain('<meta property="og:title" content="Sideleaf" />');
       expect(html).toContain('<meta name="twitter:title" content="Sideleaf" />');
+      expect(html).toContain('/sideleaf-appicon-v2-192.png');
+      expect(html).toContain('/sideleaf-appicon-v2-512.png');
     });
   });
 });

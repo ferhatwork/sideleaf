@@ -16,8 +16,15 @@ $desktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFo
 $shortcutPath = Join-Path $desktopPath "Sideleaf-Guncel.lnk"
 $powershellPath = (Get-Command powershell.exe -ErrorAction Stop).Source
 
-# Locate icon (prefers dist/icon.ico, then public/icon.ico, then root icon.ico)
-$iconPath = Join-Path $rootDir "dist\icon.ico"
+# Locate the versioned brand icon first so Windows refreshes the taskbar/shortcut
+# icon instead of retaining the previous icon-cache entry.
+$iconPath = Join-Path $rootDir "dist\sideleaf-appicon-v2.ico"
+if (-not (Test-Path $iconPath)) {
+    $iconPath = Join-Path $rootDir "dist\icon.ico"
+}
+if (-not (Test-Path $iconPath)) {
+    $iconPath = Join-Path $rootDir "public\sideleaf-appicon-v2.ico"
+}
 if (-not (Test-Path $iconPath)) {
     $iconPath = Join-Path $rootDir "public\icon.ico"
 }

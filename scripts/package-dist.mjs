@@ -53,7 +53,8 @@ const scriptFiles = [
   'launcher.ps1',
   'launcher.mjs',
   'create-desktop-shortcut.bat',
-  'create-desktop-shortcut.ps1'
+  'create-desktop-shortcut.ps1',
+  'generate-brand-icons.ps1'
 ];
 for (const file of scriptFiles) {
   const src = path.join(rootDir, 'scripts', file);
