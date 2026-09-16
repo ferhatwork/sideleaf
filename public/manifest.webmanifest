@@ -2,6 +2,7 @@
   "name": "Sideleaf",
   "short_name": "Sideleaf",
   "description": "Sideleaf — a tiny, local-first work surface for computer work.",
+  "id": "/sideleaf",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/manifest.webmanifest?v=2',
   '/build-info.json',
   '/sideleaf-appicon-v2-192.png',
   '/sideleaf-appicon-v2-512.png',
@@ -64,6 +65,25 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === '/build-info.json' || url.pathname === '/sw.js') {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // The manifest must update before a browser installs or refreshes the PWA.
+  // A stale manifest would make Chrome/Edge keep the previous application icon.
+  if (url.pathname === '/manifest.webmanifest') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

@@ -93,6 +93,7 @@ describe('Brand Identity & Verification Suite (Sideleaf)', () => {
 
       expect(manifest.name).toBe('Sideleaf');
       expect(manifest.short_name).toBe('Sideleaf');
+      expect(manifest.id).toBe('/sideleaf');
       expect(manifest.description.toLowerCase()).not.toContain('workpad');
       expect(manifest.description).toContain('Sideleaf');
       expect(manifest.icons).toEqual(expect.arrayContaining([
@@ -125,6 +126,7 @@ describe('Brand Identity & Verification Suite (Sideleaf)', () => {
       expect(html).toContain('<meta name="twitter:title" content="Sideleaf" />');
       expect(html).toContain('/sideleaf-appicon-v2-192.png');
       expect(html).toContain('/sideleaf-appicon-v2-512.png');
+      expect(html).toContain('/manifest.webmanifest?v=2');
     });
   });
 });
