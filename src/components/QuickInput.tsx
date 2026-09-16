@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { ItemType, BulkParseResult, ItemFormatting } from '../types';
+import { ItemType, BulkParseResult } from '../types';
 import { ArrowRight } from 'lucide-react';
 import { extractUrls } from '../utils/format';
 import { parseBulkInput } from '../utils/linkParser';
 import { useSideleaf } from '../hooks/useSideleaf';
-import { FormattingToolbar } from './FormattingToolbar';
+import { RichTextEditor, RichTextEditorHandle } from './RichTextEditor';
 
 export interface QuickInputHandle {
   focus: () => void;
@@ -17,7 +17,7 @@ interface QuickInputProps {
     workspaceId?: string | null;
     sectionId?: string | null;
     sourceUrl?: string;
-    formatting?: ItemFormatting;
+    richContent?: string;
   }) => Promise<unknown>;
   defaultWorkspaceId?: string | null;
   defaultSectionId?: string | null;
@@ -38,17 +38,17 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   const effectivePlaceholder = placeholder || t.capture.focusedPlaceholder;
 
   const [content, setContent] = useState('');
+  const [richContent, setRichContent] = useState('');
   const [type, setType] = useState<ItemType>('text');
-  const [formatting, setFormatting] = useState<ItemFormatting>({});
   const [isFocused, setIsFocused] = useState(autoFocus);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
 
   useImperativeHandle(ref, () => ({
     focus: () => {
       setIsFocused(true);
       setTimeout(() => {
-        textareaRef.current?.focus();
+        editorRef.current?.focus();
       }, 30);
     },
   }));
@@ -57,13 +57,19 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
     if (autoFocus) {
       setIsFocused(true);
       setTimeout(() => {
-        textareaRef.current?.focus();
+        editorRef.current?.focus();
       }, 30);
     }
   }, [autoFocus]);
 
-  const handleSubmit = async (overrideType?: ItemType) => {
-    const trimmed = content.trim();
+  const handleSubmit = async (
+    overrideType?: ItemType,
+    contentOverride?: string,
+    richContentOverride?: string
+  ) => {
+    const nextContent = contentOverride ?? content;
+    const nextRichContent = richContentOverride ?? richContent;
+    const trimmed = nextContent.trim();
     if (!trimmed || isSubmitting) return;
 
     try {
@@ -73,34 +79,18 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
         type: overrideType || type,
         workspaceId: defaultWorkspaceId,
         sectionId: defaultSectionId,
-        formatting: Object.keys(formatting).length > 0 ? formatting : undefined,
+        richContent: nextRichContent || undefined,
       });
       setContent('');
+      setRichContent('');
       setType('text');
-      setFormatting({});
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-      }
+      setIsFocused(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Ctrl+Enter converts/saves immediately as a checklist task!
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      handleSubmit('checklist');
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    } else if (e.key === 'Escape' && !content.trim()) {
-      e.preventDefault();
-      setIsFocused(false);
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const pasted = e.clipboardData.getData('text');
     if (!pasted) return;
 
@@ -132,7 +122,7 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
   const handleIdleClick = () => {
     setIsFocused(true);
     setTimeout(() => {
-      textareaRef.current?.focus();
+      editorRef.current?.focus();
     }, 20);
   };
 
@@ -168,30 +158,35 @@ export const QuickInput = forwardRef<QuickInputHandle, QuickInputProps>(({
 
   return (
     <div className="rounded-lg border border-neutral-300/80 dark:border-neutral-700 bg-white dark:bg-sideleaf-dark-surface shadow-xs transition-all p-3">
-      <textarea
-        ref={textareaRef}
-        value={content}
-        onChange={(e) => {
-          setContent(e.target.value);
-          e.target.style.height = 'auto';
-          e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
+      <RichTextEditor
+        ref={editorRef}
+        initialContent=""
+        autoFocus={autoFocus}
+        showActions={false}
+        saveOnBlur={false}
+        ariaLabel={effectivePlaceholder}
+        onChange={(nextContent, nextRichContent) => {
+          setContent(nextContent);
+          setRichContent(nextRichContent);
         }}
-        onKeyDown={handleKeyDown}
         onPaste={handlePaste}
-        onBlur={() => {
-          if (!content.trim() && !autoFocus) {
-            setIsFocused(false);
+        onSave={(nextContent, nextRichContent) => {
+          if (!nextContent?.trim()) {
+            if (!autoFocus) setIsFocused(false);
+            return;
           }
+          void handleSubmit(undefined, nextContent, nextRichContent);
         }}
-        placeholder={effectivePlaceholder}
-        rows={2}
-        aria-label={t.capture.focusedPlaceholder}
-        className="w-full bg-transparent resize-none text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none"
+        onCancel={() => {
+          setContent('');
+          setRichContent('');
+          setType('text');
+          setIsFocused(false);
+        }}
+        onSubmitTask={(nextContent, nextRichContent) => {
+          void handleSubmit('checklist', nextContent, nextRichContent);
+        }}
       />
-
-      <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/80">
-        <FormattingToolbar formatting={formatting} onChange={setFormatting} />
-      </div>
 
       <div className="mt-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">

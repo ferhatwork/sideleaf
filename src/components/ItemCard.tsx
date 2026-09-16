@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Item, ItemType, Workspace, Section, Locale, ItemFormatting } from '../types';
+import { Item, ItemType, Workspace, Section, Locale } from '../types';
 import { formatTimeAgo, extractDomain } from '../utils/format';
 import { isValidUrl } from '../utils/linkParser';
 import { useSideleaf } from '../hooks/useSideleaf';
-import { FormattingToolbar } from './FormattingToolbar';
+import { RichTextEditor } from './RichTextEditor';
+import { sanitizeRichText } from '../utils/richText';
 import {
   formatNextReminderBadge,
   formatReminderDisplay,
@@ -47,28 +48,6 @@ interface ItemCardProps {
   showWorkspaceBadge?: boolean;
 }
 
-const normalizeFormatting = (formatting?: ItemFormatting): ItemFormatting | undefined => {
-  if (!formatting) return undefined;
-
-  const normalized: ItemFormatting = {};
-  if (formatting.bold) normalized.bold = true;
-  if (formatting.italic) normalized.italic = true;
-  if (formatting.color && /^#[0-9a-f]{3,8}$/i.test(formatting.color)) {
-    normalized.color = formatting.color;
-  }
-  if (formatting.fontFamily && ['sans', 'serif', 'mono'].includes(formatting.fontFamily)) {
-    normalized.fontFamily = formatting.fontFamily;
-  }
-  if (formatting.listStyle && ['none', 'bullet', 'numbered'].includes(formatting.listStyle)) {
-    normalized.listStyle = formatting.listStyle;
-  }
-
-  return Object.keys(normalized).length > 0 ? normalized : undefined;
-};
-
-const formattingEquals = (left?: ItemFormatting, right?: ItemFormatting): boolean =>
-  JSON.stringify(normalizeFormatting(left)) === JSON.stringify(normalizeFormatting(right));
-
 export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   workspaces,
@@ -99,29 +78,21 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const nextReminder = useMemo(() => getNextUpcomingReminder(activeReminders), [activeReminders]);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [content, setContent] = useState(item.content);
-  const [formatting, setFormatting] = useState<ItemFormatting>(item.formatting || {});
+  const [draftContent, setDraftContent] = useState(item.content);
+  const [draftRichContent, setDraftRichContent] = useState(item.richContent || '');
   const [showMenu, setShowMenu] = useState(false);
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const [showSectionSubmenu, setShowSectionSubmenu] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setContent(item.content);
-    setFormatting(item.formatting || {});
-  }, [item.content, item.formatting]);
-
-  useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    if (!isEditing) {
+      setDraftContent(item.content);
+      setDraftRichContent(item.richContent || '');
     }
-  }, [isEditing]);
+  }, [item.content, item.richContent, isEditing]);
 
   // Click outside to close menus
   useEffect(() => {
@@ -149,13 +120,34 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const domain = item.source?.domain || (rawUrl ? extractDomain(rawUrl) : null);
   const isLink = item.type === 'link' || Boolean(rawUrl && isSafeUrl(rawUrl));
 
-  const saveItemContent = async (newContent: string, newFormatting: ItemFormatting = formatting) => {
+  const copyToClipboard = async (value: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+
+    const fallback = document.createElement('textarea');
+    fallback.value = value;
+    fallback.setAttribute('readonly', 'true');
+    fallback.style.position = 'fixed';
+    fallback.style.opacity = '0';
+    document.body.appendChild(fallback);
+    fallback.select();
+    const copiedSuccessfully = document.execCommand('copy');
+    fallback.remove();
+    if (!copiedSuccessfully) throw new Error('Clipboard copy failed');
+  };
+
+  const saveItemContent = async (newContent: string, newRichContent: string) => {
     const trimmed = newContent.trim();
-    const formattingChanged = !formattingEquals(item.formatting, newFormatting);
-    if (trimmed !== item.content || formattingChanged) {
-      const updates: Partial<Item> = {};
-      if (trimmed !== item.content) updates.content = trimmed;
-      if (formattingChanged) updates.formatting = normalizeFormatting(newFormatting);
+    const cleanRichContent = sanitizeRichText(newRichContent);
+    const richContentChanged = cleanRichContent !== (item.richContent || '');
+    if (trimmed !== item.content || richContentChanged || item.formatting) {
+      const updates: Partial<Item> = {
+        content: trimmed,
+        richContent: cleanRichContent || undefined,
+      };
+      if (item.formatting) updates.formatting = undefined;
       // If editing label of a link item whose URL was in content, migrate URL to source so it isn't lost
       if (trimmed !== item.content && (item.type === 'link' || isLink) && !item.source?.url && rawUrl) {
         updates.source = {
@@ -169,35 +161,30 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (nextContent?: string, nextRichContent?: string) => {
     setIsEditing(false);
-    await saveItemContent(content);
+    await saveItemContent(nextContent ?? draftContent, nextRichContent ?? draftRichContent);
   };
 
-  const handleKeyDown = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      setIsEditing(false);
-      await saveItemContent(content);
-      if (item.type !== 'checklist') {
-        await onConvertType(item.id, 'checklist');
-      } else {
-        await onToggleCheck(item.id);
-      }
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      setContent(item.content);
-      setIsEditing(false);
+  const handleCancel = () => {
+    setDraftContent(item.content);
+    setDraftRichContent(item.richContent || '');
+    setIsEditing(false);
+  };
+
+  const handleSubmitTask = async (nextContent?: string, nextRichContent?: string) => {
+    setIsEditing(false);
+    await saveItemContent(nextContent ?? draftContent, nextRichContent ?? draftRichContent);
+    if (item.type !== 'checklist') {
+      await onConvertType(item.id, 'checklist');
+    } else {
+      await onToggleCheck(item.id);
     }
   };
 
   const handleCopyText = async () => {
     try {
-      await navigator.clipboard.writeText(item.content);
+      await copyToClipboard(item.content);
       setCopied(true);
       setTimeout(() => {
         setCopied(false);
@@ -212,7 +199,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     e.stopPropagation();
     if (!rawUrl) return;
     try {
-      await navigator.clipboard.writeText(rawUrl);
+      await copyToClipboard(rawUrl);
       setCopiedLink(true);
       setTimeout(() => {
         setCopiedLink(false);
@@ -289,19 +276,32 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     });
   };
 
+  const legacyFormatting = item.formatting || {};
   const textStyle: React.CSSProperties = {
-    color: formatting.color && /^#[0-9a-f]{3,8}$/i.test(formatting.color) ? formatting.color : undefined,
+    color:
+      legacyFormatting.color && /^#[0-9a-f]{3,8}$/i.test(legacyFormatting.color)
+        ? legacyFormatting.color
+        : undefined,
     fontFamily:
-      formatting.fontFamily === 'serif'
+      legacyFormatting.fontFamily === 'serif'
         ? 'Georgia, Cambria, "Times New Roman", serif'
-        : formatting.fontFamily === 'mono'
+        : legacyFormatting.fontFamily === 'mono'
         ? '"JetBrains Mono", "Fira Code", monospace'
         : undefined,
-    fontWeight: formatting.bold ? 700 : undefined,
-    fontStyle: formatting.italic ? 'italic' : undefined,
+    fontWeight: legacyFormatting.bold ? 700 : undefined,
+    fontStyle: legacyFormatting.italic ? 'italic' : undefined,
   };
 
   const renderContent = (text: string) => {
+    if (item.richContent) {
+      return (
+        <div
+          className="rich-text-content"
+          dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.richContent) }}
+        />
+      );
+    }
+
     const lines = text.split(/\r?\n/);
     // Existing multiline notes become readable lists automatically. Users can switch
     // to numbered or plain line-break mode from the formatting toolbar.
@@ -416,12 +416,16 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           {rawUrl && isSafeUrl(rawUrl) && (
             <button
               onClick={async () => {
-                await navigator.clipboard.writeText(rawUrl);
-                setCopiedLink(true);
-                setTimeout(() => {
-                  setCopiedLink(false);
+                try {
+                  await copyToClipboard(rawUrl);
+                  setCopiedLink(true);
+                  setTimeout(() => {
+                    setCopiedLink(false);
+                    setShowMenu(false);
+                  }, 700);
+                } catch {
                   setShowMenu(false);
-                }, 700);
+                }
               }}
               className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2"
             >
@@ -651,28 +655,20 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         {/* Content area: inline edit or formatted view */}
         <div className="flex-1 min-w-0">
           {isEditing ? (
-            <div ref={editorRef} className="space-y-2">
-              <textarea
-                ref={textareaRef}
-                value={content}
-                onChange={(e) => {
-                  setContent(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                }}
-                onBlur={(e) => {
-                  const nextTarget = e.relatedTarget as Node | null;
-                  if (!nextTarget || !editorRef.current?.contains(nextTarget)) {
-                    void handleSave();
-                  }
-                }}
-                onKeyDown={handleKeyDown}
-                style={textStyle}
-                className="w-full bg-transparent resize-none text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                rows={1}
-              />
-              <FormattingToolbar formatting={formatting} onChange={setFormatting} />
-            </div>
+            <RichTextEditor
+              initialContent={item.content}
+              initialRichContent={item.richContent}
+              legacyFormatting={item.formatting}
+              autoList={item.type === 'text'}
+              ariaLabel={item.content ? `${t.item.editNote}: ${item.content.slice(0, 50)}` : t.item.editNote}
+              onChange={(nextContent, nextRichContent) => {
+                setDraftContent(nextContent);
+                setDraftRichContent(nextRichContent);
+              }}
+              onSave={handleSave}
+              onCancel={handleCancel}
+              onSubmitTask={handleSubmitTask}
+            />
           ) : isLink && item.type === 'link' ? (
             /* Dedicated Link Item View (Spec Section 3 & 4) */
             <div className="space-y-0.5">
@@ -691,7 +687,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   className="font-medium text-sm text-neutral-900 dark:text-neutral-100 hover:underline cursor-text select-text rounded focus-ring truncate max-w-full"
                   style={textStyle}
                 >
-                  {item.content || item.source?.title || rawUrl}
+                  {item.richContent ? (
+                    <span dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.richContent) }} />
+                  ) : (
+                    item.content || item.source?.title || rawUrl
+                  )}
                 </div>
 
                 {domain && (

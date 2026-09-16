@@ -1,19 +1,20 @@
 # Sideleaf - Create Desktop Shortcut Script
-# Creates a Sideleaf shortcut on the current user's desktop pointing to Sideleaf.bat
+# Creates a unique, hidden PowerShell shortcut for the current build.
 
 $ErrorActionPreference = "Stop"
 
 $rootDir = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$batPath = Join-Path $rootDir "Sideleaf.bat"
+$launcherPath = Join-Path $rootDir "scripts\launcher.ps1"
 
-if (-not (Test-Path $batPath)) {
-    Write-Host "Error: Sideleaf.bat not found at $batPath" -ForegroundColor Red
+if (-not (Test-Path $launcherPath)) {
+    Write-Host "Error: launcher.ps1 not found at $launcherPath" -ForegroundColor Red
     exit 1
 }
 
 # Resolve user Desktop path
 $desktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-$shortcutPath = Join-Path $desktopPath "Sideleaf.lnk"
+$shortcutPath = Join-Path $desktopPath "Sideleaf-Guncel.lnk"
+$powershellPath = (Get-Command powershell.exe -ErrorAction Stop).Source
 
 # Locate icon (prefers dist/icon.ico, then public/icon.ico, then root icon.ico)
 $iconPath = Join-Path $rootDir "dist\icon.ico"
@@ -27,7 +28,8 @@ if (-not (Test-Path $iconPath)) {
 try {
     $wscript = New-Object -ComObject WScript.Shell
     $shortcut = $wscript.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $batPath
+    $shortcut.TargetPath = $powershellPath
+    $shortcut.Arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherPath`" start"
     $shortcut.WorkingDirectory = $rootDir
     $shortcut.Description = "Sideleaf - Local-First Work Surface"
 
@@ -38,9 +40,9 @@ try {
     $shortcut.Save()
 
     Write-Host ""
-    Write-Host "  Sideleaf desktop shortcut created successfully!" -ForegroundColor Green
+    Write-Host "  Sideleaf current desktop shortcut created successfully!" -ForegroundColor Green
     Write-Host "  Location: $shortcutPath" -ForegroundColor Gray
-    Write-Host "  Target:   $batPath" -ForegroundColor Gray
+    Write-Host "  Target:   $powershellPath (hidden launcher)" -ForegroundColor Gray
     Write-Host ""
 }
 catch {

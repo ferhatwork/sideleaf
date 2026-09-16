@@ -33,4 +33,18 @@ describe('note formatting data', () => {
 
     expect(item.formatting).toBeUndefined();
   });
+
+  it('keeps selection-level rich content alongside searchable plain text', () => {
+    const item = createItemRecord(
+      {
+        content: 'Heading\nProduct one',
+        richContent: '<strong>Heading</strong><br>Product one',
+      },
+      null,
+      1000
+    );
+
+    expect(item.content).toBe('Heading\nProduct one');
+    expect(item.richContent).toBe('<strong>Heading</strong><br>Product one');
+  });
 });

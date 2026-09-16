@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Item, Workspace, ItemType, ItemFormatting, BulkParseResult } from '../types';
+import { Item, Workspace, ItemType, BulkParseResult } from '../types';
 import { ItemCard } from './ItemCard';
 import { QuickInput } from './QuickInput';
 import { exportWorkspaceToMarkdown, downloadMarkdownFile } from '../services/exportImport';
@@ -34,7 +34,7 @@ interface WorkspaceViewProps {
     sectionId?: string | null;
     sourceUrl?: string;
     sourceTitle?: string;
-    formatting?: ItemFormatting;
+    richContent?: string;
   }) => Promise<unknown>;
   onUpdate: (id: string, updates: Partial<Item>) => Promise<void>;
   onToggleCheck: (id: string) => Promise<void>;
