@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UserSettings, Workspace, Item, ActivityLog, Section, Reminder } from '../types';
+import { UserSettings, Workspace, WorkspaceGroup, Item, ActivityLog, Section, Reminder } from '../types';
 import { useSideleaf } from '../hooks/useSideleaf';
 import {
   generateExportData,
@@ -33,6 +33,7 @@ interface SettingsModalProps {
   settings: UserSettings;
   onUpdateSettings: (updates: Partial<UserSettings>) => Promise<void>;
   workspaces: Workspace[];
+  workspaceGroups: WorkspaceGroup[];
   items: Item[];
   activity: ActivityLog[];
   onImportData: (
@@ -43,7 +44,8 @@ interface SettingsModalProps {
     importedSections?: Section[],
     importedSettings?: UserSettings,
     importedActivity?: ActivityLog[],
-    importedReminders?: Reminder[]
+    importedReminders?: Reminder[],
+    importedWorkspaceGroups?: WorkspaceGroup[]
   ) => Promise<void>;
   onResetAllData: () => Promise<void>;
 }
@@ -54,6 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onUpdateSettings,
   workspaces,
+  workspaceGroups,
   items,
   activity,
   onImportData,
@@ -65,11 +68,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     file: File;
     items: Item[];
     workspaces: Workspace[];
+    workspaceGroups?: WorkspaceGroup[];
     sections?: Section[];
     reminders?: Reminder[];
     settings?: UserSettings;
     activity?: ActivityLog[];
-    stats: { workspacesCount: number; itemsCount: number; sectionsCount?: number; remindersCount?: number; activityCount: number };
+    stats: { workspacesCount: number; workspaceGroupsCount?: number; itemsCount: number; sectionsCount?: number; remindersCount?: number; activityCount: number };
     conflictingCount: number;
     exportedAt: string;
   } | null>(null);
@@ -94,7 +98,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   const handleExportJson = () => {
-    const data = generateExportData(workspaces, items, settings, activity, sections, reminders);
+    const data = generateExportData(workspaces, items, settings, activity, sections, reminders, workspaceGroups);
     downloadJsonFile(getExportFilename(), data);
   };
 
@@ -127,6 +131,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           file,
           items: result.data.items,
           workspaces: result.data.workspaces,
+          workspaceGroups: result.data.workspaceGroups,
           sections: result.data.sections,
           reminders: result.data.reminders,
           settings: result.data.settings,
@@ -153,7 +158,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       importPreview.sections,
       importPreview.settings,
       importPreview.activity,
-      importPreview.reminders
+      importPreview.reminders,
+      importPreview.workspaceGroups
     );
     setImportPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';

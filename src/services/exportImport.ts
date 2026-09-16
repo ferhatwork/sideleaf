@@ -1,4 +1,4 @@
-import { SideleafExportData, Workspace, Item, Section, Reminder, UserSettings, ActivityLog } from '../types';
+import { SideleafExportData, Workspace, WorkspaceGroup, Item, Section, Reminder, UserSettings, ActivityLog } from '../types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -6,6 +6,7 @@ export interface ValidationResult {
   data?: SideleafExportData;
   stats?: {
     workspacesCount: number;
+    workspaceGroupsCount?: number;
     itemsCount: number;
     sectionsCount?: number;
     remindersCount?: number;
@@ -71,6 +72,26 @@ export function validateSideleafData(raw: unknown): ValidationResult {
     }
   }
 
+  // Validate workspace groups structure if present (backward compatibility: optional)
+  if (candidate.workspaceGroups !== undefined) {
+    if (!Array.isArray(candidate.workspaceGroups)) {
+      return { valid: false, error: 'Invalid format: "workspaceGroups" must be an array.' };
+    }
+    for (let i = 0; i < candidate.workspaceGroups.length; i++) {
+      const group = candidate.workspaceGroups[i];
+      if (
+        !group.id ||
+        typeof group.id !== 'string' ||
+        !group.name ||
+        typeof group.name !== 'string' ||
+        (group.order !== undefined && (typeof group.order !== 'number' || !Number.isFinite(group.order))) ||
+        (group.collapsed !== undefined && typeof group.collapsed !== 'boolean')
+      ) {
+        return { valid: false, error: `Workspace group at index ${i} has an invalid structure.` };
+      }
+    }
+  }
+
   // Validate reminders structure if present (backward compatibility: optional)
   if (candidate.reminders !== undefined) {
     if (!Array.isArray(candidate.reminders)) {
@@ -95,6 +116,7 @@ export function validateSideleafData(raw: unknown): ValidationResult {
 
   const stats: {
     workspacesCount: number;
+    workspaceGroupsCount?: number;
     itemsCount: number;
     sectionsCount?: number;
     remindersCount?: number;
@@ -107,6 +129,10 @@ export function validateSideleafData(raw: unknown): ValidationResult {
 
   if (candidate.sections !== undefined) {
     stats.sectionsCount = candidate.sections.length;
+  }
+
+  if (candidate.workspaceGroups !== undefined) {
+    stats.workspaceGroupsCount = candidate.workspaceGroups.length;
   }
 
   if (candidate.reminders !== undefined) {
@@ -129,7 +155,8 @@ export function generateExportData(
   settings?: UserSettings,
   activity?: ActivityLog[],
   sections?: Section[],
-  reminders?: Reminder[]
+  reminders?: Reminder[],
+  workspaceGroups?: WorkspaceGroup[]
 ): SideleafExportData {
   return {
     schema: 'sideleaf-v1',
@@ -137,6 +164,7 @@ export function generateExportData(
     exportedAt: new Date().toISOString(),
     workspaces: [...workspaces],
     items: [...items],
+    ...(workspaceGroups ? { workspaceGroups: [...workspaceGroups] } : {}),
     sections: sections ? [...sections] : undefined,
     reminders: reminders ? [...reminders] : undefined,
     settings: settings ? { ...settings } : undefined,

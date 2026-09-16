@@ -1,8 +1,8 @@
-import { Item, Workspace, Section, Reminder, UserSettings, ActivityLog } from '../types';
+import { Item, Workspace, WorkspaceGroup, Section, Reminder, UserSettings, ActivityLog } from '../types';
 
 // Primary Sideleaf Database
 export const DB_NAME = 'sideleaf_db';
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 // Legacy Workpad Database (preserved for zero-data-loss migration)
 export const LEGACY_DB_NAME = 'workpad_db';
@@ -175,7 +175,19 @@ export function openDatabase(): Promise<IDBDatabase> {
 
         if (!db.objectStoreNames.contains('workspaces')) {
           const wsStore = db.createObjectStore('workspaces', { keyPath: 'id' });
+          wsStore.createIndex('order', 'order', { unique: false });
           wsStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+        } else {
+          const wsStore = (event.target as IDBOpenDBRequest).transaction?.objectStore('workspaces');
+          if (wsStore && !wsStore.indexNames.contains('order')) {
+            wsStore.createIndex('order', 'order', { unique: false });
+          }
+        }
+
+        if (!db.objectStoreNames.contains('workspaceGroups')) {
+          const groupStore = db.createObjectStore('workspaceGroups', { keyPath: 'id' });
+          groupStore.createIndex('order', 'order', { unique: false });
+          groupStore.createIndex('updatedAt', 'updatedAt', { unique: false });
         }
 
         if (!db.objectStoreNames.contains('settings')) {
@@ -221,6 +233,7 @@ export function openDatabase(): Promise<IDBDatabase> {
 // Sideleaf LocalStorage Keys
 export const LS_ITEMS = 'sideleaf_ls_items';
 export const LS_WORKSPACES = 'sideleaf_ls_workspaces';
+export const LS_WORKSPACE_GROUPS = 'sideleaf_ls_workspace_groups';
 export const LS_SECTIONS = 'sideleaf_ls_sections';
 export const LS_REMINDERS = 'sideleaf_ls_reminders';
 export const LS_SETTINGS = 'sideleaf_ls_settings';
@@ -480,6 +493,76 @@ export const db = {
       safeLsSet(LS_WORKSPACES, list);
       const secList = safeLsGet<Section[]>(LS_SECTIONS, []).filter((s) => s.workspaceId !== id);
       safeLsSet(LS_SECTIONS, secList);
+    }
+  },
+
+  async getAllWorkspaceGroups(): Promise<WorkspaceGroup[]> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('workspaceGroups', 'readonly');
+        const req = tx.objectStore('workspaceGroups').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      return safeLsGet<WorkspaceGroup[]>(LS_WORKSPACE_GROUPS, []);
+    }
+  },
+
+  async saveWorkspaceGroup(group: WorkspaceGroup): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('workspaceGroups', 'readwrite');
+        tx.objectStore('workspaceGroups').put(group);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const list = safeLsGet<WorkspaceGroup[]>(LS_WORKSPACE_GROUPS, []);
+      const idx = list.findIndex((item) => item.id === group.id);
+      if (idx >= 0) list[idx] = group;
+      else list.push(group);
+      safeLsSet(LS_WORKSPACE_GROUPS, list);
+    }
+  },
+
+  async saveWorkspaceGroups(groups: WorkspaceGroup[]): Promise<void> {
+    if (groups.length === 0) return;
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('workspaceGroups', 'readwrite');
+        const store = tx.objectStore('workspaceGroups');
+        for (const group of groups) store.put(group);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const existing = safeLsGet<WorkspaceGroup[]>(LS_WORKSPACE_GROUPS, []);
+      const map = new Map(existing.map((group) => [group.id, group]));
+      for (const group of groups) map.set(group.id, group);
+      safeLsSet(LS_WORKSPACE_GROUPS, Array.from(map.values()));
+    }
+  },
+
+  async deleteWorkspaceGroup(id: string): Promise<void> {
+    try {
+      const idb = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const tx = idb.transaction('workspaceGroups', 'readwrite');
+        tx.objectStore('workspaceGroups').delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch {
+      const groups = safeLsGet<WorkspaceGroup[]>(LS_WORKSPACE_GROUPS, []).filter((group) => group.id !== id);
+      safeLsSet(LS_WORKSPACE_GROUPS, groups);
     }
   },
 
@@ -881,6 +964,9 @@ export const db = {
       const idb = await openDatabase();
       await new Promise<void>((resolve, reject) => {
         const storeNames: string[] = ['items', 'workspaces'];
+        if (idb.objectStoreNames.contains('workspaceGroups')) {
+          storeNames.push('workspaceGroups');
+        }
         if (idb.objectStoreNames.contains('sections')) {
           storeNames.push('sections');
         }
@@ -890,6 +976,9 @@ export const db = {
         const tx = idb.transaction(storeNames, 'readwrite');
         tx.objectStore('items').clear();
         tx.objectStore('workspaces').clear();
+        if (idb.objectStoreNames.contains('workspaceGroups')) {
+          tx.objectStore('workspaceGroups').clear();
+        }
         if (idb.objectStoreNames.contains('sections')) {
           tx.objectStore('sections').clear();
         }
@@ -905,6 +994,7 @@ export const db = {
     // Clear content keys without touching activity or user settings
     safeLsSet(LS_ITEMS, []);
     safeLsSet(LS_WORKSPACES, []);
+    safeLsSet(LS_WORKSPACE_GROUPS, []);
     safeLsSet(LS_SECTIONS, []);
     safeLsSet(LS_REMINDERS, []);
     try {
@@ -918,6 +1008,9 @@ export const db = {
       const idb = await openDatabase();
       await new Promise<void>((resolve, reject) => {
         const storeNames: string[] = ['items', 'workspaces', 'activity'];
+        if (idb.objectStoreNames.contains('workspaceGroups')) {
+          storeNames.push('workspaceGroups');
+        }
         if (idb.objectStoreNames.contains('sections')) {
           storeNames.push('sections');
         }
@@ -927,6 +1020,9 @@ export const db = {
         const tx = idb.transaction(storeNames, 'readwrite');
         tx.objectStore('items').clear();
         tx.objectStore('workspaces').clear();
+        if (idb.objectStoreNames.contains('workspaceGroups')) {
+          tx.objectStore('workspaceGroups').clear();
+        }
         tx.objectStore('activity').clear();
         if (idb.objectStoreNames.contains('sections')) {
           tx.objectStore('sections').clear();
@@ -943,6 +1039,7 @@ export const db = {
     // Always clear both modern Sideleaf and legacy LocalStorage fallback keys
     safeLsSet(LS_ITEMS, []);
     safeLsSet(LS_WORKSPACES, []);
+    safeLsSet(LS_WORKSPACE_GROUPS, []);
     safeLsSet(LS_SECTIONS, []);
     safeLsSet(LS_REMINDERS, []);
     safeLsSet(LS_ACTIVITY, []);

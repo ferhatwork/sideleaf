@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Workspace } from '../types';
+import { Workspace, WorkspaceGroup } from '../types';
 import { X, FolderPlus } from 'lucide-react';
 import { useSideleaf } from '../hooks/useSideleaf';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateWorkspace: (name: string, color?: string, description?: string) => Promise<Workspace>;
+  onCreateWorkspace: (name: string, color?: string, description?: string, groupId?: string | null) => Promise<Workspace>;
+  workspaceGroups?: WorkspaceGroup[];
   editingWorkspace?: Workspace | null;
   onUpdateWorkspace?: (id: string, updates: Partial<Workspace>) => Promise<void>;
 }
@@ -26,6 +27,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   isOpen,
   onClose,
   onCreateWorkspace,
+  workspaceGroups = [],
   editingWorkspace,
   onUpdateWorkspace,
 }) => {
@@ -33,6 +35,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3b82f6');
   const [description, setDescription] = useState('');
+  const [groupId, setGroupId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -44,10 +47,12 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         setName(editingWorkspace.name);
         setColor(editingWorkspace.color || '#3b82f6');
         setDescription(editingWorkspace.description || '');
+        setGroupId(editingWorkspace.groupId || null);
       } else {
         setName('');
         setColor(PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
         setDescription('');
+        setGroupId(null);
       }
       setTimeout(() => inputRef.current?.focus(), 30);
     } else {
@@ -69,7 +74,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         description: description.trim(),
       });
     } else {
-      await onCreateWorkspace(trimmed, color, description.trim());
+      await onCreateWorkspace(trimmed, color, description.trim(), groupId);
     }
     onClose();
   };
@@ -139,6 +144,26 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
               className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus-ring"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+              {t.workspace.workspaceGroup}
+            </label>
+            <select
+              value={groupId || ''}
+              onChange={(event) => setGroupId(event.target.value || null)}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-sideleaf-dark-surface px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus-ring"
+              aria-label={t.workspace.workspaceGroupPlaceholder}
+            >
+              <option value="">{t.workspace.workspaceGroupNone}</option>
+              {workspaceGroups
+                .slice()
+                .sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt))
+                .map((group) => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+            </select>
           </div>
 
           <div>

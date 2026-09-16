@@ -1,18 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" type="image/png" href="/sideleaf-appicon.png" />
+    <link rel="apple-touch-icon" href="/sideleaf-appicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f1117" />
+    <meta name="theme-color" content="#ffffff" />
     <meta name="application-name" content="Sideleaf" />
     <meta name="apple-mobile-web-app-title" content="Sideleaf" />
     <meta name="description" content="Sideleaf — a tiny, local-first work surface for computer work. Open it. Capture thoughts. Keep working. Organize later." />
     <meta property="og:title" content="Sideleaf" />
     <meta property="og:description" content="Sideleaf — a tiny, local-first work surface for computer work." />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="/sideleaf-mainlogo.png" />
     <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content="/sideleaf-mainlogo.png" />
     <meta name="twitter:title" content="Sideleaf" />
     <meta name="twitter:description" content="Sideleaf — a tiny, local-first work surface for computer work." />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -20,6 +22,7 @@
     <script>
       // Prevent theme flash (rendering-hydration-no-flicker)
       try {
+        document.documentElement.classList.remove('dark');
         const stored = localStorage.getItem('sideleaf_ls_settings') || localStorage.getItem('workpad_ls_settings');
         if (stored) {
           const settings = JSON.parse(stored);

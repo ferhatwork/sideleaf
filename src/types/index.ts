@@ -147,12 +147,26 @@ export interface ApplicationCommands {
 
 export type WorkspaceViewMode = 'normal' | 'compact';
 
+export interface WorkspaceGroup {
+  id: string;
+  name: string;
+  color?: string;
+  order: number;
+  collapsed?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Workspace {
   id: string;
   name: string;
   color?: string;
   description?: string;
   viewMode?: WorkspaceViewMode;
+  /** Optional for backward-compatible backups created before workspace grouping. */
+  groupId?: string | null;
+  /** Optional for backward-compatible workspace records. */
+  order?: number;
   createdAt: number;
   updatedAt: number;
   isArchived?: boolean;
@@ -193,6 +207,7 @@ export interface SideleafExportData {
   version: '1.0.0';
   exportedAt: string;
   workspaces: Workspace[];
+  workspaceGroups?: WorkspaceGroup[];
   items: Item[];
   sections?: Section[];
   reminders?: Reminder[];

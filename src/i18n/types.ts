@@ -79,6 +79,22 @@ export interface WorkspaceTranslations {
   selectColor: (color: string) => string;
   workspaceOptions: (name: string) => string;
   fromWorkspace: (name: string) => string;
+  workspaceGroup: string;
+  workspaceGroupNone: string;
+  workspaceGroupPlaceholder: string;
+  newWorkspaceGroup: string;
+  editWorkspaceGroup: string;
+  workspaceGroupName: string;
+  workspaceGroupNamePlaceholder: string;
+  createWorkspaceGroup: string;
+  saveWorkspaceGroup: string;
+  workspaceGroupOptions: (name: string) => string;
+  deleteWorkspaceGroup: string;
+  deleteWorkspaceGroupConfirmPrompt: string;
+  collapseWorkspaceGroup: string;
+  expandWorkspaceGroup: string;
+  dragToReorderWorkspace: string;
+  dragToReorderWorkspaceGroup: string;
 }
 
 export interface RecentTranslations {

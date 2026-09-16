@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo, u
 import {
   Item,
   Workspace,
+  WorkspaceGroup,
   Section,
   Reminder,
   CreateReminderParams,
@@ -22,6 +23,7 @@ import { createItemRecord, updateWorkSession } from '../utils/domain';
 import { calculateNextOccurrence } from '../utils/reminderDomain';
 import { syncRemindersToRuntime } from '../services/runtimeApi';
 import { usePwaInstall } from './usePwaInstall';
+import { createDemoData } from '../utils/demoData';
 
 interface UndoAction {
   description: string;
@@ -42,6 +44,7 @@ interface ExtendedUserSettings extends UserSettings {
 interface SideleafContextType extends ApplicationCommands {
   items: Item[];
   workspaces: Workspace[];
+  workspaceGroups: WorkspaceGroup[];
   sections: Section[];
   reminders: Reminder[];
   settings: ExtendedUserSettings;
@@ -107,9 +110,15 @@ interface SideleafContextType extends ApplicationCommands {
   bulkDeleteItems: (itemIds: string[]) => Promise<void>;
 
   // Workspaces
-  createWorkspace: (name: string, color?: string, description?: string) => Promise<Workspace>;
+  createWorkspace: (name: string, color?: string, description?: string, groupId?: string | null) => Promise<Workspace>;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
+  createWorkspaceGroup: (name: string, color?: string) => Promise<WorkspaceGroup>;
+  updateWorkspaceGroup: (id: string, updates: Partial<WorkspaceGroup>) => Promise<void>;
+  deleteWorkspaceGroup: (id: string) => Promise<void>;
+  reorderWorkspaceGroups: (groupIds: string[]) => Promise<void>;
+  reorderWorkspaces: (groupId: string | null, workspaceIds: string[]) => Promise<void>;
+  moveWorkspaceToGroup: (workspaceId: string, groupId: string | null) => Promise<void>;
 
   // Settings & Data
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
@@ -121,7 +130,8 @@ interface SideleafContextType extends ApplicationCommands {
     sections?: Section[],
     settings?: UserSettings,
     activity?: ActivityLog[],
-    importedReminders?: Reminder[]
+    importedReminders?: Reminder[],
+    importedWorkspaceGroups?: WorkspaceGroup[]
   ) => Promise<void>;
   importWorkpadData: (
     items: Item[],
@@ -131,7 +141,8 @@ interface SideleafContextType extends ApplicationCommands {
     sections?: Section[],
     settings?: UserSettings,
     activity?: ActivityLog[],
-    importedReminders?: Reminder[]
+    importedReminders?: Reminder[],
+    importedWorkspaceGroups?: WorkspaceGroup[]
   ) => Promise<void>;
   resetAllData: () => Promise<void>;
 
@@ -153,8 +164,8 @@ interface SideleafContextType extends ApplicationCommands {
 }
 
 const defaultSettings: ExtendedUserSettings = {
-  theme: 'dark',
-  locale: detectSystemLocale(),
+  theme: 'light',
+  locale: 'en',
   quickCaptureShortcut: 'Ctrl+Space',
   searchShortcut: 'Ctrl+K',
   autoSaveIntervalMs: 200,
@@ -162,11 +173,39 @@ const defaultSettings: ExtendedUserSettings = {
   hasInitialized: false,
 };
 
+function normalizeWorkspaceCollections(
+  rawWorkspaces: Workspace[],
+  rawGroups: WorkspaceGroup[]
+): { workspaces: Workspace[]; groups: WorkspaceGroup[] } {
+  const groups = rawGroups
+    .map((group, index) => ({
+      ...group,
+      order: Number.isFinite(group.order) ? group.order : index,
+      collapsed: Boolean(group.collapsed),
+    }))
+    .sort((a, b) => a.order - b.order);
+  const validGroupIds = new Set(groups.map((group) => group.id));
+  const groupOrder = new Map(groups.map((group) => [group.id, group.order]));
+  const workspaces = rawWorkspaces
+    .map((workspace, index) => ({
+      ...workspace,
+      groupId: workspace.groupId && validGroupIds.has(workspace.groupId) ? workspace.groupId : null,
+      order: Number.isFinite(workspace.order) ? workspace.order : index,
+    }))
+    .sort((a, b) => {
+      const groupA = a.groupId ? (groupOrder.get(a.groupId) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      const groupB = b.groupId ? (groupOrder.get(b.groupId) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      return groupA - groupB || (a.order ?? a.createdAt) - (b.order ?? b.createdAt);
+    });
+  return { workspaces, groups };
+}
+
 export const SideleafContext = createContext<SideleafContextType | null>(null);
 
 export function SideleafProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspaceGroups, setWorkspaceGroups] = useState<WorkspaceGroup[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [settings, setSettings] = useState<ExtendedUserSettings>(defaultSettings);
@@ -280,9 +319,25 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     async function loadData() {
       try {
-        const [loadedItems, loadedWorkspaces, loadedSections, loadedReminders, loadedSettings, loadedActivity] = await Promise.all([
+        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1') {
+          const demo = createDemoData();
+          setItems(demo.items);
+          setWorkspaces(demo.workspaces);
+          setWorkspaceGroups(demo.workspaceGroups);
+          setSections(demo.sections);
+          setReminders([]);
+          setActivity([]);
+          setSettings(demo.settings);
+          setActiveView({ type: 'workspace', workspaceId: demo.activeWorkspaceId });
+          applyTheme('light');
+          document.documentElement.lang = 'en';
+          return;
+        }
+
+        const [loadedItems, loadedWorkspaces, loadedWorkspaceGroups, loadedSections, loadedReminders, loadedSettings, loadedActivity] = await Promise.all([
           db.getAllItems(),
           db.getAllWorkspaces(),
+          db.getAllWorkspaceGroups(),
           db.getAllSections(),
           db.getAllReminders(),
           db.getSettings() as Promise<ExtendedUserSettings | null>,
@@ -291,14 +346,14 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
 
         if (!isMounted) return;
 
-        const detectedLocale = detectSystemLocale();
         const currentSettings: ExtendedUserSettings = loadedSettings
-          ? {
-              ...defaultSettings,
-              ...loadedSettings,
-              locale: loadedSettings.locale || detectedLocale,
-            }
-          : { ...defaultSettings, locale: detectedLocale };
+          ? { ...defaultSettings, ...loadedSettings }
+          : { ...defaultSettings };
+        const normalizedWorkspaceData = normalizeWorkspaceCollections(loadedWorkspaces, loadedWorkspaceGroups);
+        await Promise.all([
+          db.saveWorkspaces(normalizedWorkspaceData.workspaces),
+          normalizedWorkspaceData.groups.length > 0 ? db.saveWorkspaceGroups(normalizedWorkspaceData.groups) : Promise.resolve(),
+        ]);
         setSettings(currentSettings);
         applyTheme(currentSettings.theme);
         if (typeof document !== 'undefined') {
@@ -306,6 +361,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         }
 
         setSections(loadedSections);
+        setWorkspaceGroups(normalizedWorkspaceData.groups);
         setReminders(loadedReminders);
 
         // Only seed realistic starter data on very first run (no fake tutorial/marketing cards!)
@@ -331,12 +387,14 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
           ]);
 
           setItems(starterItems);
-          setWorkspaces(loadedWorkspaces);
+          setWorkspaces(normalizedWorkspaceData.workspaces);
+          setWorkspaceGroups(normalizedWorkspaceData.groups);
           setActivity(loadedActivity);
           setSettings(updatedSettings);
         } else {
           setItems(loadedItems);
-          setWorkspaces(loadedWorkspaces);
+          setWorkspaces(normalizedWorkspaceData.workspaces);
+          setWorkspaceGroups(normalizedWorkspaceData.groups);
           setActivity(loadedActivity);
         }
       } catch (err) {
@@ -1172,12 +1230,18 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
 
   // Workspaces
   const createWorkspace = useCallback(
-    async (name: string, color = '#3b82f6', description = ''): Promise<Workspace> => {
+    async (name: string, color = '#3b82f6', description = '', groupId: string | null = null): Promise<Workspace> => {
+      const siblingOrders = workspaces
+        .filter((workspace) => (workspace.groupId || null) === groupId)
+        .map((workspace) => workspace.order ?? workspace.createdAt);
+      const nextOrder = siblingOrders.length > 0 ? Math.max(...siblingOrders) + 1 : 0;
       const newWs: Workspace = {
         id: generateId('ws'),
         name: name.trim(),
         color,
         description: description.trim(),
+        groupId,
+        order: nextOrder,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -1187,23 +1251,142 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       triggerToast(t.toast.workspaceCreated(newWs.name));
       return newWs;
     },
-    [triggerToast, t]
+    [workspaces, triggerToast, t]
   );
 
   const updateWorkspace = useCallback(async (id: string, updates: Partial<Workspace>) => {
-    let wsToSave: Workspace | null = null;
-    setWorkspaces((prev) =>
-      prev.map((w) => {
-        if (w.id !== id) return w;
-        wsToSave = { ...w, ...updates, updatedAt: Date.now() };
-        return wsToSave;
+    const currentWorkspace = workspaces.find((workspace) => workspace.id === id);
+    if (!currentWorkspace) return;
+
+    const nextGroupId = updates.groupId === undefined ? currentWorkspace.groupId || null : updates.groupId || null;
+    const groupChanged = nextGroupId !== (currentWorkspace.groupId || null);
+    const siblingOrders = groupChanged
+      ? workspaces
+          .filter((workspace) => workspace.id !== id && (workspace.groupId || null) === nextGroupId)
+          .map((workspace) => workspace.order ?? workspace.createdAt)
+      : [];
+    const nextOrder = groupChanged && !('order' in updates)
+      ? (siblingOrders.length > 0 ? Math.max(...siblingOrders) + 1 : 0)
+      : updates.order ?? currentWorkspace.order;
+    const wsToSave: Workspace = {
+      ...currentWorkspace,
+      ...updates,
+      groupId: nextGroupId,
+      ...(nextOrder !== undefined ? { order: nextOrder } : {}),
+      updatedAt: Date.now(),
+    };
+    setWorkspaces((prev) => prev.map((workspace) => (workspace.id === id ? wsToSave : workspace)));
+    await db.saveWorkspace(wsToSave);
+  }, [workspaces]);
+
+  const createWorkspaceGroup = useCallback(
+    async (name: string, color = '#0f766e'): Promise<WorkspaceGroup> => {
+      const groupOrders = workspaceGroups.map((item) => item.order ?? item.createdAt);
+      const nextOrder = groupOrders.length > 0 ? Math.max(...groupOrders) + 1 : 0;
+      const group: WorkspaceGroup = {
+        id: generateId('wsg'),
+        name: name.trim(),
+        color,
+        order: nextOrder,
+        collapsed: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      setWorkspaceGroups((prev) => [...prev, group]);
+      await db.saveWorkspaceGroup(group);
+      return group;
+    },
+    [workspaceGroups]
+  );
+
+  const updateWorkspaceGroup = useCallback(async (id: string, updates: Partial<WorkspaceGroup>) => {
+    let groupToSave: WorkspaceGroup | null = null;
+    setWorkspaceGroups((prev) =>
+      prev.map((group) => {
+        if (group.id !== id) return group;
+        groupToSave = { ...group, ...updates, updatedAt: Date.now() };
+        return groupToSave;
       })
     );
-
-    if (wsToSave) {
-      await db.saveWorkspace(wsToSave);
-    }
+    if (groupToSave) await db.saveWorkspaceGroup(groupToSave);
   }, []);
+
+  const reorderWorkspaceGroups = useCallback(async (groupIds: string[]) => {
+    const orderMap = new Map(groupIds.map((id, index) => [id, index]));
+    const updatedList = workspaceGroups.map((group) => {
+        const order = orderMap.get(group.id);
+        return order === undefined ? group : { ...group, order, updatedAt: Date.now() };
+      });
+    const toSave = updatedList.filter((group) => orderMap.has(group.id));
+    setWorkspaceGroups(updatedList);
+    if (toSave.length > 0) await db.saveWorkspaceGroups(toSave);
+  }, [workspaceGroups]);
+
+  const reorderWorkspaces = useCallback(async (groupId: string | null, workspaceIds: string[]) => {
+    const orderMap = new Map(workspaceIds.map((id, index) => [id, index]));
+    const updatedList = workspaces.map((workspace) => {
+        const order = orderMap.get(workspace.id);
+        return order === undefined
+          ? workspace
+          : { ...workspace, groupId, order, updatedAt: Date.now() };
+      });
+    const toSave = updatedList.filter((workspace) => orderMap.has(workspace.id));
+    setWorkspaces(updatedList);
+    if (toSave.length > 0) await db.saveWorkspaces(toSave);
+  }, [workspaces]);
+
+  const moveWorkspaceToGroup = useCallback(
+    async (workspaceId: string, groupId: string | null) => {
+      const movingWorkspace = workspaces.find((workspace) => workspace.id === workspaceId);
+      if (!movingWorkspace) return;
+      const sourceGroupId = movingWorkspace.groupId || null;
+      const targetWorkspaces = workspaces
+        .filter((workspace) => (workspace.groupId || null) === groupId && workspace.id !== workspaceId)
+        .sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
+      const targetIds = [...targetWorkspaces.map((workspace) => workspace.id), workspaceId];
+      const updates = new Map<string, Workspace>();
+      targetIds.forEach((id, index) => {
+        const workspace = workspaces.find((item) => item.id === id);
+        if (workspace) updates.set(id, { ...workspace, groupId, order: index, updatedAt: Date.now() });
+      });
+      if (sourceGroupId !== groupId) {
+        workspaces
+          .filter((workspace) => (workspace.groupId || null) === sourceGroupId && workspace.id !== workspaceId)
+          .sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt))
+          .forEach((workspace, index) => updates.set(workspace.id, { ...workspace, groupId: sourceGroupId, order: index, updatedAt: Date.now() }));
+      }
+      const updatedWorkspaces = workspaces.map((workspace) => updates.get(workspace.id) || workspace);
+      setWorkspaces(updatedWorkspaces);
+      await db.saveWorkspaces(Array.from(updates.values()));
+    },
+    [workspaces]
+  );
+
+  const deleteWorkspaceGroup = useCallback(
+    async (id: string) => {
+      const remainingUngrouped = workspaces
+        .filter((workspace) => (workspace.groupId || null) === null)
+        .sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
+      const releasedWorkspaces = workspaces
+        .filter((workspace) => workspace.groupId === id)
+        .sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
+      const ungroupedIds = [...remainingUngrouped, ...releasedWorkspaces].map((workspace) => workspace.id);
+      const releasedIds = new Set(releasedWorkspaces.map((workspace) => workspace.id));
+      const updatedWorkspaces = workspaces.map((workspace) => {
+        const order = ungroupedIds.indexOf(workspace.id);
+        return releasedIds.has(workspace.id)
+          ? { ...workspace, groupId: null, order, updatedAt: Date.now() }
+          : workspace;
+      });
+      if (updatedWorkspaces.length > 0) {
+        await db.saveWorkspaces(updatedWorkspaces);
+        setWorkspaces(updatedWorkspaces);
+      }
+      setWorkspaceGroups((prev) => prev.filter((group) => group.id !== id));
+      await db.deleteWorkspaceGroup(id);
+    },
+    [workspaces]
+  );
 
   const updateWorkspaceViewMode = useCallback(
     async (workspaceId: string, viewMode: 'normal' | 'compact') => {
@@ -1275,7 +1458,8 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       importedSections?: Section[],
       importedSettings?: UserSettings,
       importedActivity?: ActivityLog[],
-      importedReminders?: Reminder[]
+      importedReminders?: Reminder[],
+      importedWorkspaceGroups?: WorkspaceGroup[]
     ) => {
       // Validate all workspace references so orphaned items safely fall back to Scratch
       const validWsIds = new Set(
@@ -1285,6 +1469,17 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       );
 
       const rawSections = importedSections || [];
+      const rawWorkspaceGroups = importedWorkspaceGroups || [];
+      const normalizedImportedWorkspaceData = normalizeWorkspaceCollections(importedWorkspaces, rawWorkspaceGroups);
+      const validImportedGroupIds = new Set(
+        mode === 'replace'
+          ? normalizedImportedWorkspaceData.groups.map((group) => group.id)
+          : [...workspaceGroups.map((group) => group.id), ...normalizedImportedWorkspaceData.groups.map((group) => group.id)]
+      );
+      const sanitizedImportedWorkspaces = normalizedImportedWorkspaceData.workspaces.map((workspace) => ({
+        ...workspace,
+        groupId: workspace.groupId && validImportedGroupIds.has(workspace.groupId) ? workspace.groupId : null,
+      }));
 
       if (mode === 'replace') {
         const sanitizedItems = importedItems.map((item) => ({
@@ -1294,10 +1489,12 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         }));
 
         await db.clearContentData();
-        await db.saveWorkspaces(importedWorkspaces);
+        await db.saveWorkspaceGroups(normalizedImportedWorkspaceData.groups);
+        await db.saveWorkspaces(sanitizedImportedWorkspaces);
         await db.saveSections(rawSections);
         await db.saveItems(sanitizedItems);
-        setWorkspaces(importedWorkspaces);
+        setWorkspaceGroups(normalizedImportedWorkspaceData.groups);
+        setWorkspaces(sanitizedImportedWorkspaces);
         setSections(rawSections);
         setItems(sanitizedItems);
 
@@ -1331,6 +1528,8 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
           color: '#6366f1',
           createdAt: Date.now(),
           updatedAt: Date.now(),
+          order: Date.now(),
+          groupId: null,
         };
 
         // Remap sections for this new workspace
@@ -1383,13 +1582,23 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       } else {
         // Merge mode: keep newer record if IDs conflict
         const existingWsMap = new Map(workspaces.map((w) => [w.id, w]));
-        for (const w of importedWorkspaces) {
+        for (const w of sanitizedImportedWorkspaces) {
           const existing = existingWsMap.get(w.id);
           if (!existing || w.updatedAt > existing.updatedAt) {
             existingWsMap.set(w.id, w);
           }
         }
         const mergedWorkspaces = Array.from(existingWsMap.values());
+
+        const existingGroupMap = new Map(workspaceGroups.map((group) => [group.id, group]));
+        for (const group of rawWorkspaceGroups) {
+          const existing = existingGroupMap.get(group.id);
+          if (!existing || group.updatedAt > existing.updatedAt) {
+            existingGroupMap.set(group.id, group);
+          }
+        }
+        const mergedWorkspaceGroups = Array.from(existingGroupMap.values());
+        const normalizedMergedWorkspaceData = normalizeWorkspaceCollections(mergedWorkspaces, mergedWorkspaceGroups);
 
         const existingSecMap = new Map(sections.map((s) => [s.id, s]));
         for (const s of rawSections) {
@@ -1416,10 +1625,12 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
         }
         const mergedItems = Array.from(existingItemMap.values());
 
-        await db.saveWorkspaces(mergedWorkspaces);
+        await db.saveWorkspaces(normalizedMergedWorkspaceData.workspaces);
+        await db.saveWorkspaceGroups(normalizedMergedWorkspaceData.groups);
         await db.saveSections(mergedSections);
         await db.saveItems(mergedItems);
-        setWorkspaces(mergedWorkspaces);
+        setWorkspaces(normalizedMergedWorkspaceData.workspaces);
+        setWorkspaceGroups(normalizedMergedWorkspaceData.groups);
         setSections(mergedSections);
         setItems(mergedItems);
 
@@ -1441,7 +1652,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
 
       triggerToast(t.toast.itemsImported(importedItems.length));
     },
-    [items, workspaces, sections, reminders, triggerToast, t]
+    [items, workspaces, workspaceGroups, sections, reminders, triggerToast, t]
   );
 
   // Reset All (Sets hasInitialized to true so starter notes never re-seed!)
@@ -1451,6 +1662,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     await db.saveSettings(cleanSettings);
     setItems([]);
     setWorkspaces([]);
+    setWorkspaceGroups([]);
     setSections([]);
     setReminders([]);
     setActivity([]);
@@ -1473,6 +1685,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     () => ({
       items,
       workspaces,
+      workspaceGroups,
       sections,
       settings,
       activity,
@@ -1532,6 +1745,12 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       createWorkspace,
       updateWorkspace,
       deleteWorkspace,
+      createWorkspaceGroup,
+      updateWorkspaceGroup,
+      deleteWorkspaceGroup,
+      reorderWorkspaceGroups,
+      reorderWorkspaces,
+      moveWorkspaceToGroup,
       updateSettings,
       importSideleafData,
       importWorkpadData: importSideleafData,
@@ -1547,6 +1766,7 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
     [
       items,
       workspaces,
+      workspaceGroups,
       sections,
       reminders,
       settings,
@@ -1599,6 +1819,12 @@ export function SideleafProvider({ children }: { children: ReactNode }) {
       createWorkspace,
       updateWorkspace,
       deleteWorkspace,
+      createWorkspaceGroup,
+      updateWorkspaceGroup,
+      deleteWorkspaceGroup,
+      reorderWorkspaceGroups,
+      reorderWorkspaces,
+      moveWorkspaceToGroup,
       updateSettings,
       importSideleafData,
       resetAllData,

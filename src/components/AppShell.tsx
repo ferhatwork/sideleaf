@@ -13,10 +13,11 @@ import { QuickCaptureModal } from './QuickCaptureModal';
 import { SearchModal } from './SearchModal';
 import { SettingsModal } from './SettingsModal';
 import { WorkspaceModal } from './WorkspaceModal';
+import { WorkspaceGroupModal } from './WorkspaceGroupModal';
 import { ShortcutsModal } from './ShortcutsModal';
 import { ReminderModal } from './ReminderModal';
 import { Toast } from './Toast';
-import { Workspace, Item } from '../types';
+import { Workspace, WorkspaceGroup, Item } from '../types';
 import { generateExportData, getExportFilename, downloadJsonFile } from '../services/exportImport';
 
 export const AppShell: React.FC = () => {
@@ -24,6 +25,7 @@ export const AppShell: React.FC = () => {
     t,
     items,
     workspaces,
+    workspaceGroups,
     settings,
     activity,
     activeView,
@@ -60,6 +62,12 @@ export const AppShell: React.FC = () => {
     createWorkspace,
     updateWorkspace,
     deleteWorkspace,
+    createWorkspaceGroup,
+    updateWorkspaceGroup,
+    deleteWorkspaceGroup,
+    reorderWorkspaceGroups,
+    reorderWorkspaces,
+    moveWorkspaceToGroup,
 
     // Settings & Import
     updateSettings,
@@ -77,6 +85,8 @@ export const AppShell: React.FC = () => {
   } = useSideleaf();
 
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
+  const [editingWorkspaceGroup, setEditingWorkspaceGroup] = useState<WorkspaceGroup | null>(null);
+  const [isWorkspaceGroupModalOpen, setIsWorkspaceGroupModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [ephemeralRevealedSectionId, setEphemeralRevealedSectionId] = useState<string | null>(null);
 
@@ -112,7 +122,7 @@ export const AppShell: React.FC = () => {
         description: t.shortcuts.saveBackup,
         allowInInputs: true,
         action: () => {
-          const data = generateExportData(workspaces, items, settings, activity, sections);
+          const data = generateExportData(workspaces, items, settings, activity, sections, undefined, workspaceGroups);
           downloadJsonFile(getExportFilename(), data);
         },
       },
@@ -162,6 +172,7 @@ export const AppShell: React.FC = () => {
     items,
     settings,
     activity,
+    workspaceGroups,
     performUndo,
     performRedo,
     setIsQuickCaptureOpen,
@@ -263,6 +274,7 @@ export const AppShell: React.FC = () => {
           activeView={activeView}
           setActiveView={setActiveView}
           workspaces={workspaces}
+          workspaceGroups={workspaceGroups}
           onOpenNewWorkspace={() => {
             setEditingWorkspace(null);
             setIsWorkspaceModalOpen(true);
@@ -272,6 +284,19 @@ export const AppShell: React.FC = () => {
             setIsWorkspaceModalOpen(true);
           }}
           onDeleteWorkspace={deleteWorkspace}
+          onOpenNewGroup={() => {
+            setEditingWorkspaceGroup(null);
+            setIsWorkspaceGroupModalOpen(true);
+          }}
+          onEditWorkspaceGroup={(group) => {
+            setEditingWorkspaceGroup(group);
+            setIsWorkspaceGroupModalOpen(true);
+          }}
+          onDeleteWorkspaceGroup={deleteWorkspaceGroup}
+          onUpdateWorkspaceGroup={updateWorkspaceGroup}
+          onReorderWorkspaceGroups={reorderWorkspaceGroups}
+          onReorderWorkspaces={reorderWorkspaces}
+          onMoveWorkspaceToGroup={moveWorkspaceToGroup}
           onOpenSettings={() => setIsSettingsOpen(true)}
           todayCount={counts.today}
           scratchCount={counts.scratch}
@@ -416,6 +441,7 @@ export const AppShell: React.FC = () => {
         settings={settings}
         onUpdateSettings={updateSettings}
         workspaces={workspaces}
+        workspaceGroups={workspaceGroups}
         items={items}
         activity={activity}
         onImportData={importSideleafData}
@@ -429,8 +455,20 @@ export const AppShell: React.FC = () => {
           setEditingWorkspace(null);
         }}
         onCreateWorkspace={createWorkspace}
+        workspaceGroups={workspaceGroups}
         editingWorkspace={editingWorkspace}
         onUpdateWorkspace={updateWorkspace}
+      />
+
+      <WorkspaceGroupModal
+        isOpen={isWorkspaceGroupModalOpen}
+        onClose={() => {
+          setIsWorkspaceGroupModalOpen(false);
+          setEditingWorkspaceGroup(null);
+        }}
+        onCreateGroup={createWorkspaceGroup}
+        editingGroup={editingWorkspaceGroup}
+        onUpdateGroup={updateWorkspaceGroup}
       />
 
       <ShortcutsModal

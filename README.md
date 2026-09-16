@@ -9,13 +9,37 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue.svg" alt="License: PolyForm Noncommercial 1.0.0" /></a>
   <a href="https://github.com/ferhatwork/sideleaf/actions/workflows/build.yml"><img src="https://github.com/ferhatwork/sideleaf/actions/workflows/build.yml/badge.svg" alt="CI" /></a>
-  <a href="#development"><img src="https://img.shields.io/badge/Tests-158%20passed-success.svg" alt="Tests" /></a>
+  <a href="#development"><img src="https://img.shields.io/badge/Tests-165%20passed-success.svg" alt="Tests" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7-3178c6.svg" alt="TypeScript" /></a>
 </p>
 
 Sideleaf is a lightweight, local-first work surface for capturing thoughts, notes, links, and daily tasks while working at a computer.
 
 Designed as a digital replacement for scratch paper beside your keyboard, Sideleaf eliminates friction and clutter. No accounts, no cloud dependencies, and zero telemetry—just clean, instant capture with complete local data ownership.
+
+---
+
+## Latest: Workspace groups and a clearer workspace surface
+
+The current release adds a two-level workspace organizer. Create a workspace group for a client, product, or personal area, then keep each workspace independent inside that group. Existing notes and workspace behavior stay intact.
+
+- Drag workspace groups to change their order.
+- Drag workspaces within a group, between groups, or into the ungrouped area.
+- Collapse groups without losing their workspaces; deleting a group only ungroups its workspaces.
+- Group membership, ordering, collapse state, and backup/import flows are stored locally and remain compatible with older Sideleaf and Workpad backups.
+- Selection-level rich text formatting now keeps bold, italic, color, font, bullet, and numbered-list changes limited to the selected text; links retain one-click copy actions.
+- Notes can be reordered with drag and drop, with the order persisted locally across restarts.
+- The Windows launcher and desktop shortcut flow now use a single current build without leaving an extra command window open.
+- The supplied Sideleaf green identity is now used by the app shell, favicon, PWA metadata, and documentation.
+- New installations start in English with the light theme, while the appearance and language controls remain available.
+
+![Workspace groups demo](docs/screenshots/workspace-groups.png)
+
+The demo image uses fictional client workspaces and is safe to reuse in project documentation.
+
+### Roadmap
+
+Planned follow-ups include keyboard-accessible reorder commands, touch-friendly mobile reordering, and optional workspace tags and filters. These are intentionally listed as planned rather than represented as shipped functionality.
 
 ---
 
@@ -27,7 +51,7 @@ Designed as a digital replacement for scratch paper beside your keyboard, Sidele
 - **Keyboard-First Ergonomics**: Every primary interaction—from capturing thoughts to searching memory, toggling tasks, and navigating sections—is accessible via keyboard shortcuts.
 - **Local-First & Private**: Notes, workspaces, and reminders reside locally on your device in your browser's IndexedDB. Zero accounts, zero server dependencies, and zero trackers.
 - **Sub-Millisecond Search (`Ctrl+K`)**: Multi-factor relevance ranking across titles, content, tags, and source links with context snippets.
-- **Lightweight Production Bundle**: Static build is under 115 kB gzipped with sub-second launch.
+- **Lean Production Bundle**: Static build stays optimized for a fast local launch.
 - **PWA & Offline Ready**: Fully functional offline with zero network connectivity.
 
 ---
@@ -37,6 +61,7 @@ Designed as a digital replacement for scratch paper beside your keyboard, Sidele
 - **Scratch Surface**: An unorganized capture stream for spontaneous thoughts that don't need a dedicated home yet.
 - **Today View**: A dedicated daily focus view gathering active tasks and reminders scheduled for today.
 - **Contextual Workspaces & Sections**: Group notes by initiative or project, organized into collapsible, reorderable sections.
+- **Workspace Groups**: Organize several independent workspaces beneath a client or project group, with persistent drag-and-drop ordering.
 - **Versatile Item Types**: Plain text, checklist tasks (`Ctrl+Enter`), architectural decisions, quotes, source links, and visual dividers.
 - **Quick Capture Overlay (`Ctrl+Space`)**: Floating quick-entry bar with direct Workspace and Section destination selection.
 - **Sub-Millisecond Search (`Ctrl+K`)**: Instant keyboard-driven command palette searching content, tags, and links.
