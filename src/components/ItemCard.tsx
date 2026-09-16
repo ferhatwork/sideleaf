@@ -26,9 +26,19 @@ import {
   Layers,
   Link as LinkIcon,
   Bell,
+  GripVertical,
 } from 'lucide-react';
 
-interface ItemCardProps {
+export interface ItemDragProps {
+  isDraggable?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: (id: string) => void;
+  onDragOver?: (id: string) => void;
+  onDrop?: (id: string) => void;
+  onDragEnd?: () => void;
+}
+
+interface ItemCardProps extends ItemDragProps {
   item: Item;
   workspaces: Workspace[];
   sections?: Section[];
@@ -66,6 +76,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   onDelete,
   onOpenReminder,
   showWorkspaceBadge = true,
+  isDraggable = false,
+  isDragOver = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }) => {
   const { t, locale: ctxLocale, reminders, openReminderModal } = useSideleaf();
   const activeLocale = locale || ctxLocale || 'en';
@@ -215,7 +231,39 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   if (item.type === 'divider') {
     return (
-      <div className={`group relative ${compact ? 'py-1.5 my-0.5' : 'py-3 my-1'} flex items-center`}>
+      <div
+        className={`group relative ${compact ? 'py-1.5 my-0.5' : 'py-3 my-1'} flex items-center ${
+          isDragOver ? 'bg-blue-50/70 dark:bg-blue-950/30 ring-1 ring-blue-300 dark:ring-blue-800 rounded' : ''
+        }`}
+        onDragOver={(e) => {
+          if (!isDraggable) return;
+          e.preventDefault();
+          onDragOver?.(item.id);
+        }}
+        onDrop={(e) => {
+          if (!isDraggable) return;
+          e.preventDefault();
+          onDrop?.(item.id);
+        }}
+      >
+        {isDraggable && (
+          <button
+            type="button"
+            draggable
+            onClick={(e) => e.stopPropagation()}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', item.id);
+              onDragStart?.(item.id);
+            }}
+            onDragEnd={onDragEnd}
+            className="mr-1 p-0.5 rounded text-neutral-300 hover:text-neutral-600 dark:text-neutral-600 dark:hover:text-neutral-300 cursor-grab active:cursor-grabbing focus-ring"
+            aria-label={t.item.dragToReorder}
+            title={t.item.dragToReorder}
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </button>
+        )}
         <div className="flex-grow border-t border-neutral-200/80 dark:border-neutral-800" />
         <div
           className={`${
@@ -622,7 +670,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       className={`group relative rounded-lg px-3 ${
         compact ? 'py-1' : 'py-2'
       } -mx-3 transition-colors ${
-        isSelected
+        isDragOver
+          ? 'bg-blue-50/80 dark:bg-blue-950/30 ring-2 ring-blue-300 dark:ring-blue-800'
+          : isSelected
           ? 'bg-blue-50/80 dark:bg-blue-950/30 ring-1 ring-blue-300 dark:ring-blue-800'
           : isEditing
           ? 'bg-neutral-100/70 dark:bg-sideleaf-dark-elevated shadow-xs ring-1 ring-neutral-300 dark:ring-neutral-700'
@@ -635,8 +685,38 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           onToggleSelect(item.id, e);
         }
       }}
+      onDragOver={(e) => {
+        if (!isDraggable) return;
+        e.preventDefault();
+        onDragOver?.(item.id);
+      }}
+      onDrop={(e) => {
+        if (!isDraggable) return;
+        e.preventDefault();
+        onDrop?.(item.id);
+      }}
+      onDragEnd={onDragEnd}
     >
       <div className={`flex items-start ${compact ? 'gap-2' : 'gap-2.5'}`}>
+        {isDraggable && !isEditing && (
+          <button
+            type="button"
+            draggable
+            onClick={(e) => e.stopPropagation()}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', item.id);
+              onDragStart?.(item.id);
+            }}
+            onDragEnd={onDragEnd}
+            className="mt-0.5 -ml-1 p-0.5 rounded text-neutral-300 hover:text-neutral-600 dark:text-neutral-600 dark:hover:text-neutral-300 cursor-grab active:cursor-grabbing focus-ring"
+            aria-label={t.item.dragToReorder}
+            title={t.item.dragToReorder}
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </button>
+        )}
+
         {/* Checkbox for tasks */}
         {item.type === 'checklist' && (
           <button

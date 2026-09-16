@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Item, Workspace, ItemType, BulkParseResult } from '../types';
 import { ItemCard } from './ItemCard';
+import { SortableItemList } from './SortableItemList';
 import { QuickInput } from './QuickInput';
 import { exportWorkspaceToMarkdown, downloadMarkdownFile } from '../services/exportImport';
 import { extractRawUrls } from '../utils/linkParser';
@@ -73,6 +74,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     toggleSectionCollapse,
     deleteSection,
     reorderSections,
+    reorderItems,
     moveItemToSection,
     updateWorkspaceViewMode,
     bulkMoveItems,
@@ -120,7 +122,7 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
       items
         .filter((i) => i.workspaceId === workspace.id && i.status === 'active')
         .filter((i) => (filterType === 'all' ? true : i.type === filterType))
-        .sort((a, b) => b.updatedAt - a.updatedAt),
+        .sort((a, b) => b.order - a.order || b.updatedAt - a.updatedAt),
     [items, workspace.id, filterType]
   );
 
@@ -532,10 +534,13 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
         </div>
       ) : currentSections.length === 0 ? (
         /* Flat List (When no sections exist) */
-        <div className={isCompact ? 'space-y-1' : 'space-y-2'}>
-          {workspaceItems.slice(0, visibleCount).map((item) => (
+        <SortableItemList
+          items={workspaceItems}
+          visibleCount={visibleCount}
+          onReorder={reorderItems}
+          className={isCompact ? 'space-y-1' : 'space-y-2'}
+          renderItem={(item, dragProps) => (
             <ItemCard
-              key={item.id}
               item={item}
               workspaces={allWorkspaces}
               sections={currentSections}
@@ -551,9 +556,10 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
               onArchive={onArchive}
               onDelete={onDelete}
               showWorkspaceBadge={false}
+              {...dragProps}
             />
-          ))}
-        </div>
+          )}
+        />
       ) : (
         /* Sectioned View: Render sections even when workspace has zero items */
         <div className="space-y-6">
@@ -579,10 +585,12 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
                 />
               </div>
 
-              <div className={isCompact ? 'space-y-1' : 'space-y-2'}>
-                {unsectionedItems.map((item) => (
+              <SortableItemList
+                items={unsectionedItems}
+                onReorder={reorderItems}
+                className={isCompact ? 'space-y-1' : 'space-y-2'}
+                renderItem={(item, dragProps) => (
                   <ItemCard
-                    key={item.id}
                     item={item}
                     workspaces={allWorkspaces}
                     sections={currentSections}
@@ -598,9 +606,10 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
                     onArchive={onArchive}
                     onDelete={onDelete}
                     showWorkspaceBadge={false}
+                    {...dragProps}
                   />
-                ))}
-              </div>
+                )}
+              />
             </div>
           )}
 
@@ -795,26 +804,31 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
                         </button>
                       </div>
                     ) : (
-                      sectionItems.map((item) => (
-                        <ItemCard
-                          key={item.id}
-                          item={item}
-                          workspaces={allWorkspaces}
-                          sections={currentSections}
-                          compact={isCompact}
-                          isSelected={selectedIds.has(item.id)}
-                          onToggleSelect={handleToggleSelect}
-                          locale={locale}
-                          onUpdate={onUpdate}
-                          onToggleCheck={onToggleCheck}
-                          onConvertType={onConvertType}
-                          onMove={onMove}
-                          onMoveToSection={(itemId, secId) => moveItemToSection(itemId, secId)}
-                          onArchive={onArchive}
-                          onDelete={onDelete}
-                          showWorkspaceBadge={false}
-                        />
-                      ))
+                      <SortableItemList
+                        items={sectionItems}
+                        onReorder={reorderItems}
+                        className={isCompact ? 'space-y-1' : 'space-y-2'}
+                        renderItem={(item, dragProps) => (
+                          <ItemCard
+                            item={item}
+                            workspaces={allWorkspaces}
+                            sections={currentSections}
+                            compact={isCompact}
+                            isSelected={selectedIds.has(item.id)}
+                            onToggleSelect={handleToggleSelect}
+                            locale={locale}
+                            onUpdate={onUpdate}
+                            onToggleCheck={onToggleCheck}
+                            onConvertType={onConvertType}
+                            onMove={onMove}
+                            onMoveToSection={(itemId, secId) => moveItemToSection(itemId, secId)}
+                            onArchive={onArchive}
+                            onDelete={onDelete}
+                            showWorkspaceBadge={false}
+                            {...dragProps}
+                          />
+                        )}
+                      />
                     )}
                   </div>
                 )}

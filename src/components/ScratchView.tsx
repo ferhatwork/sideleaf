@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Item, Workspace, ItemType } from '../types';
 import { ItemCard } from './ItemCard';
+import { SortableItemList } from './SortableItemList';
 import { QuickInput } from './QuickInput';
 import { FileEdit, Filter, ChevronDown } from 'lucide-react';
 import { useSideleaf } from '../hooks/useSideleaf';
@@ -28,7 +29,7 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
   onArchive,
   onDelete,
 }) => {
-  const { t, locale } = useSideleaf();
+  const { t, locale, reorderItems } = useSideleaf();
   const [filterType, setFilterType] = useState<string>('all');
   const [visibleCount, setVisibleCount] = useState<number>(50);
 
@@ -38,13 +39,8 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
       items
         .filter((i) => !i.workspaceId && i.status === 'active')
         .filter((i) => (filterType === 'all' ? true : i.type === filterType))
-        .sort((a, b) => b.updatedAt - a.updatedAt),
+        .sort((a, b) => b.order - a.order || b.updatedAt - a.updatedAt),
     [items, filterType]
-  );
-
-  const displayedItems = useMemo(
-    () => scratchItems.slice(0, visibleCount),
-    [scratchItems, visibleCount]
   );
 
   const getFilterLabel = (filterKey: string) => {
@@ -120,22 +116,28 @@ export const ScratchView: React.FC<ScratchViewProps> = ({
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {displayedItems.map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              workspaces={workspaces}
-              locale={locale}
-              onUpdate={onUpdate}
-              onToggleCheck={onToggleCheck}
-              onConvertType={onConvertType}
-              onMove={onMove}
-              onArchive={onArchive}
-              onDelete={onDelete}
-              showWorkspaceBadge={false}
-            />
-          ))}
+        <div>
+          <SortableItemList
+            items={scratchItems}
+            visibleCount={visibleCount}
+            onReorder={reorderItems}
+            className="space-y-2"
+            renderItem={(item, dragProps) => (
+              <ItemCard
+                item={item}
+                workspaces={workspaces}
+                locale={locale}
+                onUpdate={onUpdate}
+                onToggleCheck={onToggleCheck}
+                onConvertType={onConvertType}
+                onMove={onMove}
+                onArchive={onArchive}
+                onDelete={onDelete}
+                showWorkspaceBadge={false}
+                {...dragProps}
+              />
+            )}
+          />
 
           {/* Large dataset pagination (Spec Section 61) */}
           {scratchItems.length > visibleCount && (

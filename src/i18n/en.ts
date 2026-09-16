@@ -132,6 +132,7 @@ export const en: TranslationSchema = {
     convertToDecision: 'Convert to decision',
     copyText: 'Copy text',
     copyLink: 'Copy link',
+    dragToReorder: 'Drag to reorder',
     moveToWorkspace: 'Move to workspace',
     scratchOption: 'Scratch',
     archiveAction: 'Archive',

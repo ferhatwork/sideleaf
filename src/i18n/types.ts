@@ -138,6 +138,7 @@ export interface ItemTranslations {
   convertToDecision: string;
   copyText: string;
   copyLink: string;
+  dragToReorder: string;
   moveToWorkspace: string;
   scratchOption: string;
   archiveAction: string;
